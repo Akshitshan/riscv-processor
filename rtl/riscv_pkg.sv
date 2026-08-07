@@ -1,27 +1,9 @@
-// ============================================================
-//  PACKAGE: riscv_pkg
-//  PURPOSE: Shared type definitions used across all modules.
-//
-//  WHAT IS A SYSTEMVERILOG PACKAGE?
-//  A package is like a shared header file — but cleaner.
-//  Instead of copy-pasting type definitions into every file
-//  (which causes errors when they go out of sync), you define
-//  them ONCE here and every module imports this package.
-//
-//  At real companies (Nvidia, Qualcomm, etc.), every project
-//  has one or more packages holding shared enums, structs,
-//  and parameters. This is considered best practice.
-//
-//  HOW TO USE IT IN A MODULE:
-//    import riscv_pkg::*;   <-- add this inside the module
-// ============================================================
+//  package: riscv_pkg
+//  Purpose: Shared type definitions used across all modules.
 
 package riscv_pkg;
 
-    // ── ALU operation codes ──────────────────────────────────
-    //  Tells the ALU which operation to perform.
-    //  The control unit sets this every cycle based on the
-    //  instruction it decoded.
+// ALU operation codes- Tells the ALU which operation to perform
 
     typedef enum logic [3:0] {
         ALU_ADD  = 4'b0000,   // Addition
@@ -42,9 +24,8 @@ package riscv_pkg;
         ALU_REM  = 4'b1111    // Signed remainder
     } alu_op_t;
 
-    // ── Immediate format selector ────────────────────────────
-    //  Tells the immediate generator which instruction format
-    //  to decode the immediate from.
+
+    // Format of IMMediate- Tells the immediate generator which instruction format to decode the immediate from.
 
     typedef enum logic [2:0] {
         IMM_I = 3'b000,   // I-type: loads, ALU-imm, JALR

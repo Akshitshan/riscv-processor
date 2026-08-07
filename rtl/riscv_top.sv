@@ -1,13 +1,11 @@
-// ============================================================
-//  MODULE: riscv_top — Single-Cycle RV32IM Processor
-//  PURPOSE: Wires every submodule into one complete CPU.
-// ============================================================
+//  Module: riscv_top — Single-Cycle RV32IM Processor
+//  Purpose: Wires every submodule into one complete CPU.
 
 module riscv_top
-    import riscv_pkg::*;   // Brings in alu_op_t, imm_sel_t
+    import riscv_pkg::*;
 (
-    input  logic        clk,
-    input  logic        rst,
+    input logic clk,
+    input logic rst,
     output logic [31:0] dbg_pc,
     output logic [31:0] dbg_instr,
     output logic [31:0] dbg_alu_result

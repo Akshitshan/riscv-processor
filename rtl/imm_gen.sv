@@ -1,5 +1,5 @@
-//  MODULE: imm_gen — Immediate Generator
-//  PURPOSE: Extracts and sign-extends the immediate value
+//  Module: imm_gen — Immediate Generator
+//  Purpose: Extracts and sign-extends the immediate value
 //           from any of the 6 RISC-V instruction formats.
 
 module imm_gen
@@ -13,7 +13,7 @@ module imm_gen
         imm_out = 32'b0;
 
         case (imm_sel)
-            // Rearrange wherever required (all except U-type, and sign extend using the 31st bit of the instr)
+            // Rearranged the bits wherever required and sign extend using the 31st bit of the instr
             // R-type: no immediate
             IMM_I: imm_out = {{20{instr[31]}}, instr[31:20]};
             IMM_S: imm_out = {{20{instr[31]}}, instr[31:25], instr[11:7]};

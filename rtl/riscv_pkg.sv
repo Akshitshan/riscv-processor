@@ -1,8 +1,8 @@
-//  package: riscv_pkg
+//  Module: Shared package
 //  Purpose: Shared type definitions used across all modules.
+`timescale 1ns/1ps
 
 package riscv_pkg;
-
 // ALU operation codes- Tells the ALU which operation to perform
 
     typedef enum logic [3:0] {

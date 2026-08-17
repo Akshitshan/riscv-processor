@@ -2,7 +2,6 @@
 // Purpose: Does all the computation. Takes two 32-bit inputs, 
 //          performs the operation and returns a 32-bit result.
 
-
 module alu
     import riscv_pkg::*; // Importing the common shared types (alu_op_t for the ALU)
    
@@ -37,7 +36,7 @@ module alu
             ALU_SRA:  result = $signed(operand_a) >>> operand_b[4:0];
             ALU_OR:   result = operand_a | operand_b;
             ALU_AND:  result = operand_a & operand_b;
-            ALU_LUI:  result = operand_b;          
+            ALU_LUI:  result = operand_b; // Op_B should already contain shifted immediate value      
             ALU_MUL:  result = mul_unsigned[31:0];
             ALU_MULH: result = mul_signed[63:32];
 

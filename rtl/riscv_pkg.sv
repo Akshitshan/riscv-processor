@@ -1,32 +1,40 @@
-//  Module: Shared package
-//  Purpose: Shared type definitions used across all modules.
+// ============================================================
+//  PACKAGE: riscv_pkg — Shared type definitions
+//
+//  CHANGE: alu_op_t expanded from 4-bit to 5-bit to add:
+//    ALU_MULHSU — signed × unsigned, upper 32 bits (MULHSU)
+//    ALU_MULHU  — unsigned × unsigned, upper 32 bits (MULHU)
+//    ALU_REMU   — unsigned remainder (REMU)
+// ============================================================
+
 `timescale 1ns/1ps
 
 package riscv_pkg;
-// ALU operation codes- Tells the ALU which operation to perform
 
-    typedef enum logic [3:0] {
-        ALU_ADD  = 4'b0000,   // Addition
-        ALU_SUB  = 4'b0001,   // Subtraction
-        ALU_AND  = 4'b0010,   // Bitwise AND
-        ALU_OR   = 4'b0011,   // Bitwise OR
-        ALU_XOR  = 4'b0100,   // Bitwise XOR
-        ALU_SLL  = 4'b0101,   // Shift Left Logical
-        ALU_SRL  = 4'b0110,   // Shift Right Logical
-        ALU_SRA  = 4'b0111,   // Shift Right Arithmetic
-        ALU_SLT  = 4'b1000,   // Set Less Than (signed)
-        ALU_SLTU = 4'b1001,   // Set Less Than (unsigned)
-        ALU_LUI  = 4'b1010,   // Pass operand_b through (for LUI)
-        ALU_MUL  = 4'b1011,   // Multiply lower 32 bits
-        ALU_MULH = 4'b1100,   // Multiply upper 32 bits (signed)
-        ALU_DIV  = 4'b1101,   // Signed division
-        ALU_DIVU = 4'b1110,   // Unsigned division
-        ALU_REM  = 4'b1111    // Signed remainder
+    // ── ALU operation codes (5-bit, 19 operations) ───────────
+    typedef enum logic [4:0] {
+        ALU_ADD   = 5'b00000,   // Addition            (ADD, ADDI, loads, stores)
+        ALU_SUB   = 5'b00001,   // Subtraction         (SUB, branches)
+        ALU_AND   = 5'b00010,   // Bitwise AND         (AND, ANDI)
+        ALU_OR    = 5'b00011,   // Bitwise OR          (OR, ORI)
+        ALU_XOR   = 5'b00100,   // Bitwise XOR         (XOR, XORI)
+        ALU_SLL   = 5'b00101,   // Shift Left Logical  (SLL, SLLI)
+        ALU_SRL   = 5'b00110,   // Shift Right Logical (SRL, SRLI)
+        ALU_SRA   = 5'b00111,   // Shift Right Arith   (SRA, SRAI)
+        ALU_SLT   = 5'b01000,   // Set Less Than signed(SLT, SLTI, BLT, BGE)
+        ALU_SLTU  = 5'b01001,   // Set Less Than unsign(SLTU, SLTIU, BLTU, BGEU)
+        ALU_LUI   = 5'b01010,   // Pass B through      (LUI)
+        ALU_MUL   = 5'b01011,   // Multiply low 32     (MUL)
+        ALU_MULH  = 5'b01100,   // Multiply high s×s   (MULH)
+        ALU_MULHSU= 5'b01101,   // Multiply high s×u   (MULHSU) ← NEW
+        ALU_MULHU = 5'b01110,   // Multiply high u×u   (MULHU)  ← NEW
+        ALU_DIV   = 5'b01111,   // Signed division     (DIV)
+        ALU_DIVU  = 5'b10000,   // Unsigned division   (DIVU)
+        ALU_REM   = 5'b10001,   // Signed remainder    (REM)
+        ALU_REMU  = 5'b10010    // Unsigned remainder  (REMU)   ← NEW
     } alu_op_t;
 
-
-    // Format of IMMediate- Tells the immediate generator which instruction format to decode the immediate from.
-
+    // ── Immediate format selector ─────────────────────────────
     typedef enum logic [2:0] {
         IMM_I = 3'b000,   // I-type: loads, ALU-imm, JALR
         IMM_S = 3'b001,   // S-type: stores

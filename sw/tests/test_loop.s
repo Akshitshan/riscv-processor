@@ -39,4 +39,4 @@ loop:
     addi  x3, x0, 99       # x3 = 99 (marker: we reached the end correctly)
 
 done:
-    j done
+    beq   x0, x0, done   # infinite loop, but PREDICTABLE (trains the branch predictor)

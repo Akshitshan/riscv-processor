@@ -1,9 +1,6 @@
-// ============================================================
-//  MODULE: alu — Arithmetic Logic Unit
-//
-//  CHANGES: Added MULHSU, MULHU, REMU to complete all 8
-//  M-extension instructions. alu_op_t is now 5-bit.
-// ============================================================
+// Module: alu- Arithmetic Logic Unit
+// Purpose: Takes two inputs, rs1 and rs2/imm, along with the opeartion 
+//          to perform and produces the result (and a zero flag for branch logics)
 
 `timescale 1ns/1ps
 
@@ -17,65 +14,58 @@ module alu
     output logic        zero
 );
 
-    // Signed interpretations of inputs
+    // Signed versions of the inputs
     logic signed [31:0] signed_a;
     logic signed [31:0] signed_b;
     assign signed_a = $signed(operand_a);
     assign signed_b = $signed(operand_b);
 
-    // ── Multiply intermediates ────────────────────────────────
-    // Pre-computed outside the case so synthesis sees them as
-    // shared hardware, not separate multipliers.
+    // --- Multiplication intermediates -------------------------------
+    // Need a 64-bit intermediary to be able to extract
+    // the high half in case of MULH
 
-    // MUL / MULH: signed × signed → 64-bit
-    logic signed [63:0] mul_ss;
+    logic signed [63:0] mul_ss;             // Signed x signed
     assign mul_ss = signed_a * signed_b;
 
-    // MULHU: unsigned × unsigned → 64-bit
-    logic [63:0] mul_uu;
+    logic [63:0] mul_uu;                    // Unsigned x unsigned
     assign mul_uu = operand_a * operand_b;
 
-    // MULHSU: signed × unsigned → 64-bit
-    // Trick: zero-extend operand_b to 33 bits so $signed treats
-    // it as positive, then multiply with 32-bit signed_a.
-    logic signed [63:0] mul_su;
+    // zero-extend operand_b to 33 bits so '$signed' treats it as +ve
+    logic signed [63:0] mul_su;             // Signed x Unsigned
     assign mul_su = signed_a * $signed({1'b0, operand_b});
 
-    // ── Main operation select ─────────────────────────────────
+    // --- Main operation selection -----------------------------------
     always_comb begin
-        result = 32'b0;   // safe default prevents latches
+        result = 32'b0;   // safe default
 
         case (alu_op)
-            // ── Integer arithmetic ────────────────────────────
+            // ---Integer arithmetic ----------------------------------
             ALU_ADD:  result = operand_a + operand_b;
             ALU_SUB:  result = operand_a - operand_b;
-            ALU_LUI:  result = operand_b;   // LUI: pass immediate through
+            ALU_LUI:  result = operand_b;   // operand b in upper 20bits with padding
 
-            // ── Bitwise logic ─────────────────────────────────
+            // --- Bitwise logic --------------------------------------
             ALU_AND:  result = operand_a & operand_b;
             ALU_OR:   result = operand_a | operand_b;
             ALU_XOR:  result = operand_a ^ operand_b;
 
-            // ── Shifts ───────────────────────────────────────
-            // Only lower 5 bits of operand_b used as shift amount
+            // --- Shifts ---------------------------------------------
+            // Only lower 5 bits of operand_b used as shift amount bcz 32-bit data width
             ALU_SLL:  result = operand_a << operand_b[4:0];
             ALU_SRL:  result = operand_a >> operand_b[4:0];
             ALU_SRA:  result = $signed(operand_a) >>> operand_b[4:0];
 
-            // ── Comparisons ───────────────────────────────────
+            // --- Comparisons ----------------------------------------
             ALU_SLT:  result = (signed_a < signed_b) ? 32'd1 : 32'd0;
             ALU_SLTU: result = (operand_a < operand_b) ? 32'd1 : 32'd0;
 
-            // ── M-extension: Multiply ─────────────────────────
+            // --- M-extension: Multiply ------------------------------
             ALU_MUL:   result = mul_ss[31:0];    // lower 32 of s×s
             ALU_MULH:  result = mul_ss[63:32];   // upper 32 of s×s
             ALU_MULHSU:result = mul_su[63:32];   // upper 32 of s×u
             ALU_MULHU: result = mul_uu[63:32];   // upper 32 of u×u
 
-            // ── M-extension: Divide ───────────────────────────
-            // Division by zero is DEFINED in RISC-V spec (no trap):
-            //   signed div/rem by 0  → -1 / dividend
-            //   unsigned div/rem by 0 → 0xFFFFFFFF / dividend
+            // --- M-extension: Divide --------------------------------
             ALU_DIV: begin
                 if (operand_b == 32'b0)
                     result = 32'hFFFF_FFFF;          // -1
@@ -108,7 +98,7 @@ module alu
         endcase
     end
 
-    // Zero flag: used by branch logic (BEQ checks zero, BNE checks ~zero)
+    // --- Zero flag --------------------------------------------------
     assign zero = (result == 32'b0);
 
 endmodule

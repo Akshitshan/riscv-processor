@@ -1,53 +1,31 @@
-// ============================================================
-//  MODULE: riscv_pipeline — 5-Stage Pipelined RV32IM CPU
-//  PHASE 5: Now with branch prediction
-//
-//  WHAT CHANGED FROM PHASE 3/4:
-//
-//  1. Added a branch_predictor instance. Every cycle, it looks
-//     at the PC we're about to fetch and gives us a guess:
-//     "taken" or "not-taken", plus a target address if taken.
-//
-//  2. The IF stage now uses that guess to decide what to fetch
-//     next, INSTEAD of always assuming "not taken" (PC+4).
-//
-//  3. The guess rides along with the instruction through the
-//     pipeline registers (the "predicted_taken" signal you saw
-//     added to if_id_reg and id_ex_reg).
-//
-//  4. In the EX stage, once we know the REAL outcome, we compare
-//     it to what we guessed. Three outcomes:
-//       - Guessed right  → no penalty, pipeline just keeps going
-//       - Guessed wrong  → flush 2 instructions, fix the PC
-//       - Not a branch   → guess is irrelevant, ignored
-//
-//  5. We also feed the real outcome back into the predictor
-//     (the "update" interface) so it learns for next time.
-// ============================================================
+// Module: riscv_pipeline- 5-Stage Pipelined RV32IM CPU
+
+// V2: added branch predictor and icache signals 
 
 `timescale 1ns/1ps
 
 module riscv_pipeline
     import riscv_pkg::*;
 (
-    input  logic        clk,
-    input  logic        rst,
+    input logic clk,
+    input logic rst,
     output logic [31:0] dbg_pc,
     output logic [31:0] dbg_instr,
     output logic [31:0] dbg_wb_data,
 
-    // ── NEW debug outputs for measuring predictor performance ──
-    output logic        dbg_branch_resolved,  // pulses when any branch finishes in EX
-    output logic        dbg_mispredict         // pulses when that branch was guessed wrong
+    // --- Debug outputs for measuring predictor performance ------------------------
+    output logic dbg_branch_resolved,   // pulses when any branch finishes in EX
+    output logic dbg_mispredict,        // pulses when that branch was guessed wrong
+
+    // --- Instruction cache stats --------------------------------------------------
+    output logic dbg_icache_hit,        // pulses on every cache hit
+    output logic dbg_icache_miss        // pulses once per new miss
 );
 
-    // ==========================================================
-    //  SIGNAL DECLARATIONS
-    // ==========================================================
-
+    // --- Wires between modules and regs -------------------------------------------
     logic [31:0] if_pc, if_pc_plus4, if_instr;
-    logic [31:0] id_pc, id_instr;
 
+    logic [31:0] id_pc, id_instr;
     logic [31:0] id_rs1_data, id_rs2_data, id_imm;
     logic        id_reg_write, id_mem_read, id_mem_write;
     logic [2:0]  id_mem_funct3;
@@ -87,8 +65,10 @@ module riscv_pipeline
 
     logic [31:0] wb_data;
 
-    logic stall_pc, stall_if_id, flush_id_ex;
+    logic hazard_stall_pc, hazard_stall_if_id, hazard_flush_id_ex;
+    logic stall_pc, stall_if_id, bubble_stall;
     logic flush_if_id;
+    logic icache_stall;   // high while icache is servicing a miss
 
     // ── NEW: branch predictor signals ──────────────────────────
     logic        if_predict_taken;    // predictor's guess for if_pc
@@ -101,105 +81,84 @@ module riscv_pipeline
     logic        ex_redirect;         // 1 = PC must be corrected this cycle
     logic [31:0] ex_redirect_target;  // where to correct the PC to
 
-    // ==========================================================
-    //  STAGE 1 — INSTRUCTION FETCH (IF)
-    // ==========================================================
+// ==========================================================================
+//                      STAGE 1- INSTRUCTION FETCH (IF)
+// ==========================================================================
 
     assign if_pc_plus4 = if_pc + 32'd4;
     assign dbg_pc       = if_pc;
     assign dbg_instr    = if_instr;
 
-    // ── Branch/JAL/JALR target computed once, reused everywhere ─
-    // For a plain branch (BEQ etc.) or JAL, target = PC + immediate.
-    // JALR is different — its target comes from a register, not PC.
-    assign ex_branch_target = ex_pc + ex_imm;
+    assign ex_branch_target = ex_pc + ex_imm;               // for j and branch, JALR has diff
 
-    // ── Did we guess wrong? ────────────────────────────────────
-    // Only branches (not jumps) go through the predictor, so we
-    // only check misprediction when ex_branch=1.
-    // "Wrong" means: what we predicted != what actually happened.
     assign ex_mispredict = ex_branch && (ex_predicted_taken != ex_branch_taken);
+    assign ex_redirect = ex_jump | ex_mispredict;           // for unconditional jump or mispred branch
+    assign flush_if_id = ex_redirect;   // any redirect from EX stage kills the two instr already wrongly fetched
 
-    // ── Does the PC need correcting this cycle? ─────────────────
-    // Two reasons to redirect: an unconditional jump (always needs
-    // it, since we never try to predict those), or a mispredicted
-    // branch (we guessed and got it wrong).
-    assign ex_redirect = ex_jump | ex_mispredict;
-
-    // ── Where do we redirect to? ────────────────────────────────
-    // JALR: target comes from a register (rs1 + imm), bit 0 cleared.
-    // JAL:  target is PC + imm (always taken, no guessing needed).
-    // Mispredicted branch: if it turned out taken, go to the real
-    //   target. If it turned out NOT taken, go back to the normal
-    //   fall-through address (pc_plus4) — undoing our wrong guess.
+    // --- Where do we redirect to ----------------------------------------------
     assign ex_redirect_target =
-        ex_jalr                ? {ex_alu_result[31:1], 1'b0} :
-        ex_jump                ? ex_branch_target :
-        ex_branch_taken         ? ex_branch_target :
-                                  ex_pc_plus4;
+                ex_jalr ? {ex_alu_result[31:1], 1'b0} :
+                ex_jump ? ex_branch_target :
+        ex_branch_taken ? ex_branch_target : ex_pc_plus4;
 
-    // Any redirect from EX kills the 2 instructions already fetched
-    // on the (now known to be) wrong path.
-    assign flush_if_id = ex_redirect;
-
-    // ── The actual next-PC decision (this is the key change) ───
-    // Priority order:
-    //   1. Stalled (load-use hazard)? Don't move at all.
-    //   2. EX says "I need to correct you"? Obey that — it overrides
-    //      everything, because EX has ground truth this cycle.
-    //   3. Otherwise, trust the predictor: if it says taken, fetch
-    //      from its target; if not, fetch the next sequential
-    //      instruction as usual.
+    // --- The actual next-PC decision ------------------------------------------
+    // Priority order: Redirect- stall- prediction
     logic [31:0] next_pc;
-    assign next_pc = stall_pc            ? if_pc :
-                     ex_redirect          ? ex_redirect_target :
-                     if_predict_taken     ? if_predict_target :
-                                            if_pc_plus4;
+    assign next_pc = 
+             ex_redirect ? ex_redirect_target :
+                stall_pc ? if_pc :
+        if_predict_taken ? if_predict_target : if_pc_plus4;
+
+    logic icache_flush;                 
+    assign icache_flush = ex_redirect && (ex_redirect_target != if_pc); 
+    // Inequality important for self referencing lines otherwise it keeps getting cacnelled before completing
 
     pc_reg u_pc (
         .clk    (clk),
         .rst    (rst),
         .pc_next(next_pc),
         .pc     (if_pc)
+    );    
+
+    icache u_icache (
+        .clk        (clk),
+        .rst        (rst),
+        .addr       (if_pc),
+        .flush      (icache_flush),
+        .instr_out  (if_instr),
+        .stall      (icache_stall),
+        .hit_pulse  (dbg_icache_hit),
+        .miss_pulse (dbg_icache_miss)
     );
 
-    instr_mem #(.MEM_DEPTH(1024)) u_imem (
-        .addr  (if_pc),
-        .instr (if_instr)
-    );
-
-    // ── Branch predictor: makes a guess every single cycle ──────
-    // It doesn't know yet if if_pc even points to a branch — that's
-    // fine, because non-branch PCs simply never get "trained" (see
-    // update_valid below), so they always predict "not taken" by
-    // default and cause no harm.
     branch_predictor #(.BHT_BITS(6)) u_bp (
         .clk            (clk),
         .rst            (rst),
         .predict_pc     (if_pc),
-        .predict_taken  (if_predict_taken),
-        .predict_target (if_predict_target),
-        .update_valid   (ex_branch),          // only branches train it
+        .update_valid   (ex_branch),
         .update_pc      (ex_pc),
         .update_taken   (ex_branch_taken),
-        .update_target  (ex_branch_target)
+        .update_target  (ex_branch_target),
+        .predict_taken  (if_predict_taken),
+        .predict_target (if_predict_target)
     );
 
     if_id_reg u_if_id (
-        .clk               (clk), .rst(rst),
-        .flush             (flush_if_id),
-        .stall             (stall_if_id),
-        .pc_in             (if_pc),
-        .instr_in          (if_instr),
-        .predicted_taken_in(if_predict_taken),
-        .pc_out            (id_pc),
-        .instr_out         (id_instr),
+        .clk                (clk), 
+        .rst                (rst),
+        .flush              (flush_if_id),
+        .stall              (stall_if_id),
+        .pc_in              (if_pc),
+        .instr_in           (if_instr),
+        .predicted_taken_in (if_predict_taken),
+        .pc_out             (id_pc),
+        .instr_out          (id_instr),
         .predicted_taken_out(id_predicted_taken)
     );
 
-    // ==========================================================
-    //  STAGE 2 — INSTRUCTION DECODE (ID)
-    // ==========================================================
+// ==========================================================================
+//                      STAGE 2- INSTRUCTION DECODE (ID)
+// ==========================================================================
 
     control_unit u_ctrl (
         .instr      (id_instr),
@@ -238,28 +197,36 @@ module riscv_pipeline
         .id_ex_rd       (ex_rd_addr),
         .if_id_rs1      (id_instr[19:15]),
         .if_id_rs2      (id_instr[24:20]),
-        .stall_if_id    (stall_if_id),
-        .stall_pc       (stall_pc),
-        .flush_id_ex    (flush_id_ex)
+        .stall_if_id    (hazard_stall_if_id),
+        .stall_pc       (hazard_stall_pc),
+        .flush_id_ex    (hazard_flush_id_ex)
     );
 
+    // --- Combine hazard-unit stalls with icache-miss stalls -------------------
+    //  A load-use hazard and a cache miss both just mean don't move forward yet
+    //  Either source freezes the front of the pipeline.
+    assign stall_pc     = hazard_stall_pc    | icache_stall;
+    assign stall_if_id  = hazard_stall_if_id | icache_stall;
+    assign bubble_stall = hazard_flush_id_ex | icache_stall;
+
     id_ex_reg u_id_ex (
-        .clk           (clk), .rst(rst),
-        .flush         (flush_id_ex | ex_redirect),
-        .reg_write_in  (id_reg_write),  .reg_write_out (ex_reg_write),
-        .mem_read_in   (id_mem_read),   .mem_read_out  (ex_mem_read),
-        .mem_write_in  (id_mem_write),  .mem_write_out (ex_mem_write),
-        .mem_funct3_in (id_mem_funct3), .mem_funct3_out(ex_mem_funct3),
-        .wb_sel_in     (id_wb_sel),     .wb_sel_out    (ex_wb_sel),
-        .alu_src_in    (id_alu_src),    .alu_src_out   (ex_alu_src),
-        .alu_op_in     (id_alu_op),     .alu_op_out    (ex_alu_op),
-        .branch_in     (id_branch),     .branch_out    (ex_branch),
-        .jump_in       (id_jump),       .jump_out      (ex_jump),
-        .jalr_in       (id_jalr),       .jalr_out      (ex_jalr),
-        .pc_in         (id_pc),         .pc_out        (ex_pc),
-        .rs1_data_in   (id_rs1_data),   .rs1_data_out  (ex_rs1_data),
-        .rs2_data_in   (id_rs2_data),   .rs2_data_out  (ex_rs2_data),
-        .imm_in        (id_imm),        .imm_out       (ex_imm),
+        .clk           (clk),
+        .rst           (rst),
+        .flush         (bubble_stall | ex_redirect),
+        .reg_write_in  (id_reg_write),    .reg_write_out (ex_reg_write),
+        .mem_read_in   (id_mem_read),     .mem_read_out  (ex_mem_read),
+        .mem_write_in  (id_mem_write),    .mem_write_out (ex_mem_write),
+        .mem_funct3_in (id_mem_funct3),   .mem_funct3_out(ex_mem_funct3),
+        .wb_sel_in     (id_wb_sel),       .wb_sel_out    (ex_wb_sel),
+        .alu_src_in    (id_alu_src),      .alu_src_out   (ex_alu_src),
+        .alu_op_in     (id_alu_op),       .alu_op_out    (ex_alu_op),
+        .branch_in     (id_branch),       .branch_out    (ex_branch),
+        .jump_in       (id_jump),         .jump_out      (ex_jump),
+        .jalr_in       (id_jalr),         .jalr_out      (ex_jalr),
+        .pc_in         (id_pc),           .pc_out        (ex_pc),
+        .rs1_data_in   (id_rs1_data),     .rs1_data_out  (ex_rs1_data),
+        .rs2_data_in   (id_rs2_data),     .rs2_data_out  (ex_rs2_data),
+        .imm_in        (id_imm),          .imm_out       (ex_imm),
         .rs1_addr_in   (id_instr[19:15]), .rs1_addr_out(ex_rs1_addr),
         .rs2_addr_in   (id_instr[24:20]), .rs2_addr_out(ex_rs2_addr),
         .rd_addr_in    (id_instr[11:7]),  .rd_addr_out (ex_rd_addr),
@@ -267,9 +234,9 @@ module riscv_pipeline
         .predicted_taken_out(ex_predicted_taken)
     );
 
-    // ==========================================================
-    //  STAGE 3 — EXECUTE (EX)
-    // ==========================================================
+// ========================================================================
+//                      STAGE 3- EXECUTE (EX)
+// ========================================================================
 
     assign ex_pc_plus4 = ex_pc + 32'd4;
 
@@ -284,6 +251,7 @@ module riscv_pipeline
         .forward_b        (ex_forward_b)
     );
 
+    // --- Writeback Mux to decide rs1 and rs2 ----------------------------------
     always_comb begin
         case (ex_forward_a)
             2'b10:   ex_alu_operand_a = mem_alu_result;
@@ -291,7 +259,6 @@ module riscv_pipeline
             default: ex_alu_operand_a = ex_rs1_data;
         endcase
     end
-
     always_comb begin
         case (ex_forward_b)
             2'b10:   ex_fwd_rs2 = mem_alu_result;
@@ -300,14 +267,12 @@ module riscv_pipeline
         endcase
     end
 
+    // --- Selecting the ALU operands a & b -------------------------------------
     assign ex_alu_input_b = ex_alu_src ? ex_imm : ex_fwd_rs2;
 
     logic [31:0] final_alu_a;
-    assign final_alu_a = (ex_alu_op == ALU_LUI)
-                         ? ex_rs1_data
-                         : (ex_wb_sel == 2'b10 && !ex_jalr)
-                           ? ex_pc
-                           : ex_alu_operand_a;
+    assign final_alu_a= (ex_alu_op == ALU_LUI)           ? ex_rs1_data :
+                        (ex_wb_sel == 2'b10 && !ex_jalr) ? ex_pc       : ex_alu_operand_a;
 
     alu u_alu (
         .operand_a (final_alu_a),
@@ -317,28 +282,29 @@ module riscv_pipeline
         .zero      (ex_alu_zero)
     );
 
-    // Branch condition evaluator — figures out the REAL outcome
+    // --- Branch condition evaluator -------------------------------------------
     always_comb begin
         ex_branch_taken = 1'b0;
         if (ex_branch) begin
             case (ex_mem_funct3)
-                3'b000: ex_branch_taken = ex_alu_zero;
-                3'b001: ex_branch_taken = ~ex_alu_zero;
-                3'b100: ex_branch_taken = ex_alu_result[0];
-                3'b101: ex_branch_taken = ~ex_alu_result[0];
-                3'b110: ex_branch_taken = ex_alu_result[0];
-                3'b111: ex_branch_taken = ~ex_alu_result[0];
+                3'b000: ex_branch_taken = ex_alu_zero;          // BEQ
+                3'b001: ex_branch_taken = ~ex_alu_zero;         // BNE
+                3'b100: ex_branch_taken = ex_alu_result[0];     // BLT
+                3'b101: ex_branch_taken = ~ex_alu_result[0];    // BGE
+                3'b110: ex_branch_taken = ex_alu_result[0];     // BLTU
+                3'b111: ex_branch_taken = ~ex_alu_result[0];    // BGEU
                 default: ex_branch_taken = 1'b0;
             endcase
         end
     end
 
-    // ── Debug outputs for the testbench to measure accuracy ────
+    // --- Debug outputs for the testbench to measure accuracy ------------------
     assign dbg_branch_resolved = ex_branch;
     assign dbg_mispredict      = ex_mispredict;
 
     ex_mem_reg u_ex_mem (
-        .clk           (clk), .rst(rst),
+        .clk           (clk), 
+        .rst           (rst),
         .reg_write_in  (ex_reg_write),   .reg_write_out (mem_reg_write),
         .mem_read_in   (ex_mem_read),    .mem_read_out  (mem_mem_read),
         .mem_write_in  (ex_mem_write),   .mem_write_out (mem_mem_write),
@@ -350,9 +316,9 @@ module riscv_pipeline
         .rd_addr_in    (ex_rd_addr),     .rd_addr_out   (mem_rd_addr)
     );
 
-    // ==========================================================
-    //  STAGE 4 — MEMORY (MEM)
-    // ==========================================================
+// ========================================================================
+//                      STAGE 4- MEMORY (MEM)
+// ========================================================================
 
     data_mem #(.MEM_DEPTH(1024)) u_dmem (
         .clk        (clk),
@@ -374,9 +340,9 @@ module riscv_pipeline
         .rd_addr_in    (mem_rd_addr),    .rd_addr_out   (wb_rd_addr)
     );
 
-    // ==========================================================
-    //  STAGE 5 — WRITEBACK (WB)
-    // ==========================================================
+// ========================================================================
+//                      STAGE 5 — WRITEBACK (WB)
+// ========================================================================
 
     always_comb begin
         case (wb_wb_sel)

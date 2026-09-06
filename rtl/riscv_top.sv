@@ -1,4 +1,4 @@
-//  Module: riscv_top — Single-Cycle RV32IM Processor
+//  Module: riscv_top- Single-Cycle RV32IM Processor
 //  Purpose: Wires every submodule into one complete CPU.
 
 module riscv_top
@@ -11,7 +11,7 @@ module riscv_top
     output logic [31:0] dbg_alu_result
 );
 
-    // ── Wires between modules ─────────────────────────────────
+    // --- Wires between modules ------------------------------------------
     logic [31:0] pc, pc_plus4, pc_branch, pc_next;
     logic [31:0] instr;
     logic [31:0] rs1_data, rs2_data, rd_data;
@@ -21,37 +21,35 @@ module riscv_top
     logic        alu_zero;
     logic [31:0] mem_read_data;
 
-    // Control signals
-    alu_op_t     alu_op;
-    logic        alu_src, reg_write, mem_read, mem_write;
-    logic [2:0]  mem_funct3;
-    logic [1:0]  wb_sel;
-    imm_sel_t    imm_sel;
-    logic        branch, jump, jalr_sel;
-    logic        branch_taken, pc_sel;
+    // --- Control signals ------------------------------------------------
+    alu_op_t    alu_op;
+    logic       alu_src, reg_write, mem_read, mem_write;
+    logic [2:0] mem_funct3;
+    logic [1:0] wb_sel;
+    imm_sel_t   imm_sel;
+    logic       branch, jump, jalr_sel;
+    logic       branch_taken, pc_sel;
 
-    // ── Debug taps ────────────────────────────────────────────
+    // --- Debug taps ----------------------------------------------------
     assign dbg_pc         = pc;
     assign dbg_instr      = instr;
     assign dbg_alu_result = alu_result;
 
-    // ── PC arithmetic ─────────────────────────────────────────
+    // --- PC arithmetic -------------------------------------------------
     assign pc_plus4  = pc + 32'd4;
 
-    // Branch/jump target:
-    //   JALR  → (rs1 + imm) with bit 0 forced to 0
-    //   JAL/B → PC + imm
-    assign pc_branch = jalr_sel ? {alu_result[31:1], 1'b0} : (pc + imm);
+    // --- Branch/jump target --------------------------------------------
+    assign pc_branch = jalr_sel ? {alu_result[31:1], 1'b0} : (pc + imm);  // jalr or bran&jmp
     assign pc_sel    = jump | branch_taken;
     assign pc_next   = pc_sel ? pc_branch : pc_plus4;
 
-    // ALU second operand: register or immediate
+    // --- ALU operands -------------------------------------------------
     assign alu_operand_b = alu_src ? imm : rs2_data;
 
     // AUIPC needs PC as operand_a; all others use rs1
     assign alu_operand_a = (instr[6:0] == 7'b0010111) ? pc : rs1_data;
 
-    // Writeback mux: ALU result / memory data / return address
+    // --- Writeback mux ------------------------------------------------
     always_comb begin
         case (wb_sel)
             2'b00:   rd_data = alu_result;
@@ -61,7 +59,7 @@ module riscv_top
         endcase
     end
 
-    // Branch condition evaluator
+    // --- Branch condition evaluator -----------------------------------
     always_comb begin
         branch_taken = 1'b0;
         if (branch) begin
@@ -77,7 +75,7 @@ module riscv_top
         end
     end
 
-    // ── Module instantiations ─────────────────────────────────
+    // --- Module instantiations ----------------------------------------
     pc_reg u_pc (
         .clk(clk), .rst(rst), .pc_next(pc_next), .pc(pc)
     );

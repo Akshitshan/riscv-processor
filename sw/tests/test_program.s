@@ -3,6 +3,12 @@
 #  PURPOSE: Tests every instruction category in the CPU.
 #           Compile this → program.hex → loaded by instr_mem.
 # ============================================================
+#
+#  HOW TO READ RISC-V ASSEMBLY:
+#  Each line is one instruction.
+#  Format: instruction  destination, source1, source2_or_immediate
+#  x0 always = 0. We use it as a "zero register" for constants.
+#
 #  COMPILE COMMAND (run in your project root):
 #    riscv64-unknown-elf-gcc -march=rv32im -mabi=ilp32 \
 #        -nostdlib -nostartfiles -Ttext=0x0 \
@@ -96,7 +102,7 @@ skip_zone:
     # The testbench's timeout watchdog detects this is stuck
     # and knows the program has completed.
 done:
-    j done                  # Pseudoinstruction: jal x0, done
+    beq   x0, x0, done      # infinite loop, but predictable (trains branch predictor)
 
 # ── Subroutine: my_func ──────────────────────────────────────
 #  Called via JAL. Returns via JALR (ret pseudoinstruction).

@@ -1,20 +1,6 @@
-// ============================================================
-//  MODULE: control_unit — Instruction Decoder
-//
-//  FIXES:
-//  1. Secondary decode now checks OP_BRANCH for ALL funct3
-//     values, not just funct3=000. This fixes BNE, BLT,
-//     BGE, BLTU, BGEU which were getting wrong ALU ops.
-//
-//  2. funct3=010 checks for MULHSU (M-ext) before SLT.
-//     funct3=011 checks for MULHU  (M-ext) before SLTU.
-//     funct3=111 checks for BGEU (branch) then REMU (M-ext)
-//     then AND — all three cases now handled correctly.
-//
-//  3. OP_BRANCH passes funct3 through mem_funct3 so the
-//     branch evaluator in riscv_pipeline knows BEQ vs BNE
-//     vs BLT etc. (was defaulting to 3'b010 = word access).
-// ============================================================
+// Module: control_unit- Instruction Decoder
+// Purpose: Main character of the decoding process, takes an intsruction
+//          and breaks it down into all the necessary control signals
 
 `timescale 1ns/1ps
 
@@ -43,6 +29,7 @@ module control_unit
     assign funct3 = instr[14:12];
     assign funct7 = instr[31:25];
 
+    // --- Defining the constant opcodes for each instruction type ---------
     localparam OP_LUI    = 7'b0110111;
     localparam OP_AUIPC  = 7'b0010111;
     localparam OP_JAL    = 7'b1101111;
@@ -55,7 +42,7 @@ module control_unit
     localparam OP_SYSTEM = 7'b1110011;
 
     always_comb begin
-        // ── Safe defaults ──────────────────────────────────
+        // --- Safe defaults -----------------------------------------------
         alu_op    = ALU_ADD;
         alu_src   = 1'b0;
         reg_write = 1'b0;
@@ -69,6 +56,7 @@ module control_unit
         jalr      = 1'b0;
 
         case (opcode)
+        // --- First decoding to find out which type of instruction --------
             OP_LUI: begin
                 reg_write = 1'b1; alu_src = 1'b1;
                 alu_op = ALU_LUI; imm_sel = IMM_U;
@@ -91,8 +79,6 @@ module control_unit
                 alu_src    = 1'b0;
                 imm_sel    = IMM_B;
                 branch     = 1'b1;
-                // Pass actual funct3 so pipeline branch evaluator
-                // can distinguish BEQ/BNE/BLT/BGE/BLTU/BGEU
                 mem_funct3 = funct3;
             end
             OP_LOAD: begin
@@ -114,8 +100,8 @@ module control_unit
             default:   begin end
         endcase
 
-        // ── Secondary decode: ALU op from funct3 + funct7 ──
-        // Runs for OP-IMM, OP-REG, and OP-BRANCH.
+        // --- Secondary decode for which ALU op from funct3 + funct7 ------
+        // Runs for R-type, I-type and B-type
         // Priority inside each case:
         //   1. OP_BRANCH check  (branch instructions)
         //   2. OP_REG + M-ext   (multiply/divide)
@@ -124,70 +110,64 @@ module control_unit
 
         if (opcode == OP_IMM || opcode == OP_REG || opcode == OP_BRANCH) begin
             case (funct3)
-
                 // funct3=000: BEQ, ADD/ADDI, SUB, MUL
                 3'b000: begin
                     if (opcode == OP_BRANCH)
                         alu_op = ALU_SUB;   // BEQ and BNE both subtract
                     else if (opcode == OP_REG && funct7 == 7'b0000001)
-                        alu_op = ALU_MUL;   // MUL
+                        alu_op = ALU_MUL;
                     else if (opcode == OP_REG && funct7[5])
-                        alu_op = ALU_SUB;   // SUB (funct7 bit 5 = 1)
+                        alu_op = ALU_SUB;
                     else
-                        alu_op = ALU_ADD;   // ADD / ADDI
+                        alu_op = ALU_ADD;
                 end
 
                 // funct3=001: BNE, SLL/SLLI, MULH
-                // FIX: added OP_BRANCH check for BNE
                 3'b001: begin
                     if (opcode == OP_BRANCH)
                         alu_op = ALU_SUB;   // BNE: subtract, branch if ~zero
                     else if (opcode == OP_REG && funct7 == 7'b0000001)
-                        alu_op = ALU_MULH;  // MULH
+                        alu_op = ALU_MULH;
                     else
-                        alu_op = ALU_SLL;   // SLL / SLLI
+                        alu_op = ALU_SLL;
                 end
 
                 // funct3=010: SLT/SLTI, MULHSU
-                // Note: no branch instruction uses funct3=010
                 3'b010: begin
                     if (opcode == OP_REG && funct7 == 7'b0000001)
-                        alu_op = ALU_MULHSU; // MULHSU (signed×unsigned upper)
+                        alu_op = ALU_MULHSU; // MULHSU (SxU upper)
                     else
-                        alu_op = ALU_SLT;    // SLT / SLTI
+                        alu_op = ALU_SLT;
                 end
 
                 // funct3=011: SLTU/SLTIU, MULHU
-                // Note: no branch instruction uses funct3=011
                 3'b011: begin
                     if (opcode == OP_REG && funct7 == 7'b0000001)
-                        alu_op = ALU_MULHU;  // MULHU (unsigned×unsigned upper)
+                        alu_op = ALU_MULHU;  // MULHU (UxU upper)
                     else
-                        alu_op = ALU_SLTU;   // SLTU / SLTIU
+                        alu_op = ALU_SLTU;
                 end
 
                 // funct3=100: BLT, XOR/XORI, DIV
-                // FIX: added OP_BRANCH check for BLT (user spotted this!)
                 3'b100: begin
                     if (opcode == OP_BRANCH)
                         alu_op = ALU_SLT;   // BLT: set-less-than signed
                     else if (opcode == OP_REG && funct7 == 7'b0000001)
-                        alu_op = ALU_DIV;   // DIV
+                        alu_op = ALU_DIV;
                     else
-                        alu_op = ALU_XOR;   // XOR / XORI
+                        alu_op = ALU_XOR;
                 end
 
                 // funct3=101: BGE, SRL/SRA/SRLI/SRAI, DIVU
-                // FIX: branch check must come FIRST
                 3'b101: begin
                     if (opcode == OP_BRANCH)
                         alu_op = ALU_SLT;   // BGE: SLT then ~result in evaluator
                     else if (funct7[5])
-                        alu_op = ALU_SRA;   // SRA / SRAI
+                        alu_op = ALU_SRA;
                     else if (opcode == OP_REG && funct7 == 7'b0000001)
-                        alu_op = ALU_DIVU;  // DIVU
+                        alu_op = ALU_DIVU;
                     else
-                        alu_op = ALU_SRL;   // SRL / SRLI
+                        alu_op = ALU_SRL;
                 end
 
                 // funct3=110: BLTU, OR/ORI, REM
@@ -195,20 +175,19 @@ module control_unit
                     if (opcode == OP_BRANCH)
                         alu_op = ALU_SLTU;  // BLTU: set-less-than unsigned
                     else if (opcode == OP_REG && funct7 == 7'b0000001)
-                        alu_op = ALU_REM;   // REM (signed)
+                        alu_op = ALU_REM;
                     else
-                        alu_op = ALU_OR;    // OR / ORI
+                        alu_op = ALU_OR;
                 end
 
                 // funct3=111: BGEU, AND/ANDI, REMU
-                // FIX: three-way check — branch → REMU → AND
                 3'b111: begin
                     if (opcode == OP_BRANCH)
                         alu_op = ALU_SLTU;  // BGEU: SLTU then ~result in evaluator
                     else if (opcode == OP_REG && funct7 == 7'b0000001)
-                        alu_op = ALU_REMU;  // REMU (unsigned remainder)
+                        alu_op = ALU_REMU;
                     else
-                        alu_op = ALU_AND;   // AND / ANDI
+                        alu_op = ALU_AND;
                 end
 
             endcase

@@ -120,7 +120,7 @@ module tb_verify;
 
         // Run for 500 cycles — enough for any of our test programs
         // (even with stalls from load-use hazards)
-        repeat(500) @(posedge clk); #1;
+        repeat(800) @(posedge clk); #1;   // bumped for icache miss headroom (Phase 5b)
 
         // ── Scoreboard comparison ─────────────────────────────
         $display("--- Register comparison: DUT vs reference model ---");

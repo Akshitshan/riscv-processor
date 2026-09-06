@@ -1,5 +1,6 @@
-// Module: pc_reg — Program Counter Register
-// Purpose: Holds the address of the instruction currently being fetched. Updates every clock cycle.
+// Module: pc_reg- Program Counter Register
+// Purpose: Holds the address of the instruction currently being fetched 
+//          and updates every clock cycle
 
 module pc_reg
    (input logic clk,

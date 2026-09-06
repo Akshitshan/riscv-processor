@@ -38,7 +38,8 @@ PIPELINE_RTL = $(SHARED)              \
     ../rtl/pipeline_regs.sv           \
     ../rtl/hazard_unit.sv             \
     ../rtl/forward_unit.sv            \
-	../rtl/branch_predictor.sv		  \
+    ../rtl/branch_predictor.sv        \
+    ../rtl/icache.sv                  \
     ../rtl/riscv_pipeline.sv
 
 # ── Phase 4: verification ────────────────────────────────────
@@ -135,11 +136,11 @@ disasm:
 	riscv64-unknown-elf-objdump -d $(VERI_ELF)
 
 clean:
-	rm -rf obj_single obj_pipeline obj_verify
+	rm -rf obj_single obj_pipeline obj_verify obj_branch obj_icache
 	rm -f  *.vcd *.elf *.hex expected_regs.hex
 	@echo "Cleaned."
 
-.PHONY: single pipeline build-verify verify regress waves disasm clean unit-alu branch-bench
+.PHONY: single pipeline build-verify verify regress waves disasm clean unit-alu branch-bench icache-bench
 
 # ── Unit test: ALU in isolation (no pipeline, no clock needed) ─
 unit-alu:
@@ -151,12 +152,7 @@ unit-alu:
 	./obj_unit_alu/Vtb_alu_unit
 
 # ── Phase 5: Branch predictor benchmark ──────────────────────
-BP_RTL = $(SHARED)              \
-    ../rtl/pipeline_regs.sv     \
-    ../rtl/hazard_unit.sv       \
-    ../rtl/forward_unit.sv      \
-    ../rtl/branch_predictor.sv  \
-    ../rtl/riscv_pipeline.sv
+BP_RTL = $(PIPELINE_RTL)
 
 branch-bench:
 	@echo "[1/3] Compiling test_loop.s..."
@@ -170,3 +166,17 @@ branch-bench:
 	    $(BP_RTL) ../tb/tb_branch_bench.sv
 	@echo "[3/3] Running..."
 	./obj_branch/Vtb_branch_bench
+
+# ── Phase 5b: Instruction cache benchmark ────────────────────
+icache-bench:
+	@echo "[1/3] Compiling test_loop.s..."
+	$(GCC) $(ARCH) -nostdlib -nostartfiles -Ttext=0x0 \
+	    -o loop.elf ../sw/tests/test_loop.s
+	$(OBJCOPY) -O verilog loop.elf program.hex
+	@echo "[2/3] Building instruction cache benchmark..."
+	@mkdir -p obj_icache
+	$(VERILATOR) --binary --timing -sv -Wno-fatal --trace \
+	    --top-module tb_icache_bench -Mdir obj_icache \
+	    $(PIPELINE_RTL) ../tb/tb_icache_bench.sv
+	@echo "[3/3] Running..."
+	./obj_icache/Vtb_icache_bench

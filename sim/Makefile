@@ -1,25 +1,23 @@
-# ============================================================
-#  Makefile — RV32IM Processor Project
-#
-#  COMMANDS:
-#    make single              → Phase 2: single-cycle CPU test
-#    make pipeline            → Phase 3: pipelined CPU test
-#    make build-verify        → Phase 4: compile verify sim (once)
-#    make verify TEST=test_alu → Phase 4: run one verification test
-#    make regress             → Phase 4: run all 5 tests
-#    make clean               → delete all build files
-#    make waves               → open GTKWave
-#
-#  Phase 2 and Phase 3 always use: ../sw/test_program.s
-#  Phase 4 uses:                   ../sw/tests/<TEST>.s
-# ============================================================
+# Makefile- RV32IM Processor
 
-GCC       = riscv64-unknown-elf-gcc
-OBJCOPY   = riscv64-unknown-elf-objcopy
+# Commands:
+#	make single= Phase 2: single-cycle CPU test
+#	make pipeline= Phase 3: pipelined CPU test
+#	make build-verify= Phase 4: compile verify sim (only one time needed)
+#	make verify TEST=test_alu= Phase 4: run one verification test
+#	make regress= Phase 4: run all 5 tests
+#	make clean= delete all build files
+#	make waves= open GTKWave
+#
+# Phase 2 and Phase 3 always use: ../sw/test_program.s
+# Phase 4 uses: ../sw/tests/<TEST>.s
+
+GCC = riscv64-unknown-elf-gcc
+OBJCOPY = riscv64-unknown-elf-objcopy
 VERILATOR = verilator
-ARCH      = -march=rv32im -mabi=ilp32
+ARCH = -march=rv32im -mabi=ilp32
 
-# ── Shared RTL (used by all designs) ─────────────────────────
+# --- Shared RTL (used by all designs) --------------------------------------
 SHARED = \
     ../rtl/riscv_pkg.sv     \
     ../rtl/alu.sv           \
@@ -30,10 +28,10 @@ SHARED = \
     ../rtl/data_mem.sv      \
     ../rtl/control_unit.sv
 
-# ── Phase 2: single-cycle ────────────────────────────────────
+# --- Phase 2: single-cycle -------------------------------------------------
 SINGLE_RTL = $(SHARED) ../rtl/riscv_top.sv
 
-# ── Phase 3: pipeline ────────────────────────────────────────
+# --- Phase 3: pipeline -----------------------------------------------------
 PIPELINE_RTL = $(SHARED)              \
     ../rtl/pipeline_regs.sv           \
     ../rtl/hazard_unit.sv             \
@@ -42,24 +40,22 @@ PIPELINE_RTL = $(SHARED)              \
     ../rtl/icache.sv                  \
     ../rtl/riscv_pipeline.sv
 
-# ── Phase 4: verification ────────────────────────────────────
+# --- Phase 4: verification --------------------------------------------------
 VERIFY_RTL = $(PIPELINE_RTL)
 
-# ── Original test program (Phases 2 and 3) ───────────────────
+# --- Original test program (Phases 2 and 3) ---------------------------------
 ORIG_SRC = ../sw/test_program.s
 ORIG_ELF = original.elf
 ORIG_HEX = program.hex
 
-# ── Phase 4 test program (set with TEST=xxx) ─────────────────
-TEST     ?= test_alu
-VERI_SRC  = ../sw/tests/$(TEST).s
-VERI_ELF  = verify.elf
-VERI_HEX  = program.hex
-EXPECTED  = expected_regs.hex
+# --- Phase 4 test program (set with TEST=xxx) -------------------------------
+TEST ?= test_alu
+VERI_SRC = ../sw/tests/$(TEST).s
+VERI_ELF = verify.elf
+VERI_HEX = program.hex
+EXPECTED = expected_regs.hex
 
-# ─────────────────────────────────────────────────────────────
-#  PHASE 2 — single-cycle CPU
-# ─────────────────────────────────────────────────────────────
+# --- Phase 2- single-cycle CPU ----------------------------------------------
 single:
 	@echo "[1/3] Compiling original test program..."
 	$(GCC) $(ARCH) -nostdlib -nostartfiles -Ttext=0x0 \
@@ -73,9 +69,7 @@ single:
 	    $(SINGLE_RTL) ../tb/tb_riscv.sv
 	./obj_single/Vtb_riscv
 
-# ─────────────────────────────────────────────────────────────
-#  PHASE 3 — pipelined CPU
-# ─────────────────────────────────────────────────────────────
+# --- Phase 3- pipelined CPU ------------------------------------------------
 pipeline:
 	@echo "[1/3] Compiling original test program..."
 	$(GCC) $(ARCH) -nostdlib -nostartfiles -Ttext=0x0 \
@@ -89,11 +83,9 @@ pipeline:
 	    $(PIPELINE_RTL) ../tb/tb_pipeline.sv
 	./obj_pipeline/Vtb_pipeline
 
-# ─────────────────────────────────────────────────────────────
-#  PHASE 4 — verification (build sim binary once, reuse for all tests)
-# ─────────────────────────────────────────────────────────────
+# --- Phase 4- verification (build sim binary once, reuse for all tests) ---
 
-# Step A: Build the verification sim binary (do this ONCE)
+# Step A: Build the verification sim binary (do this once only)
 build-verify:
 	@echo "Building verification simulation binary..."
 	@echo "(This takes ~15 seconds. Only need to do it once.)"
@@ -105,11 +97,11 @@ build-verify:
 	@echo "Now run: make verify TEST=test_alu"
 
 # Step B: Run one verification test
-#   Usage: make verify TEST=test_alu
-#          make verify TEST=test_hazards
-#          make verify TEST=test_branch
-#          make verify TEST=test_memory
-#          make verify TEST=test_mext
+# Usage: make verify TEST=test_alu
+#        make verify TEST=test_hazards
+#        make verify TEST=test_branch
+#        make verify TEST=test_memory
+#        make verify TEST=test_mext
 verify:
 	@echo "=== Verifying: $(TEST) ==="
 	@echo "[1/3] Compiling $(TEST).s..."
@@ -125,9 +117,7 @@ verify:
 regress: build-verify
 	python3 run_regression.py
 
-# ─────────────────────────────────────────────────────────────
-#  UTILITIES
-# ─────────────────────────────────────────────────────────────
+# --- Utilities ------------------------------------------------------------
 waves:
 	gtkwave wave.vcd 2>/dev/null || gtkwave wave_verify.vcd &
 
@@ -136,13 +126,14 @@ disasm:
 	riscv64-unknown-elf-objdump -d $(VERI_ELF)
 
 clean:
-	rm -rf obj_single obj_pipeline obj_verify obj_branch obj_icache
-	rm -f  *.vcd *.elf *.hex expected_regs.hex
+	rm -rf obj_single obj_pipeline obj_verify obj_branch obj_icache obj_unit_alu 
+	rm -rf obj_unit_imm_gen obj_unit_reg_file
+	rm -f *.vcd *.elf *.hex expected_regs.hex
 	@echo "Cleaned."
 
 .PHONY: single pipeline build-verify verify regress waves disasm clean unit-alu branch-bench icache-bench
 
-# ── Unit test: ALU in isolation (no pipeline, no clock needed) ─
+# --- Unit test: Solo modules ---
 unit-alu:
 	@echo "Running isolated ALU unit test..."
 	@mkdir -p obj_unit_alu
@@ -151,7 +142,24 @@ unit-alu:
 	    ../rtl/riscv_pkg.sv ../rtl/alu.sv ../tb/tb_alu_unit.sv
 	./obj_unit_alu/Vtb_alu_unit
 
-# ── Phase 5: Branch predictor benchmark ──────────────────────
+unit-imm-gen:
+	@echo "Running isolated imm_gen unit test..."
+	@mkdir -p obj_unit_imm_gen
+	$(VERILATOR) --binary --timing -sv -Wno-fatal \
+	    --top-module tb_imm_gen_unit -Mdir obj_unit_imm_gen \
+	    ../rtl/riscv_pkg.sv ../rtl/imm_gen.sv ../tb/tb_imm_gen_unit.sv
+	./obj_unit_imm_gen/Vtb_imm_gen_unit
+
+unit-reg-file:
+	@echo "Running isolated reg_file unit test..."
+	@mkdir -p obj_unit_reg_file
+	$(VERILATOR) --binary --timing -sv -Wno-fatal \
+	    --top-module tb_reg_file_unit -Mdir obj_unit_reg_file \
+	    ../rtl/reg_file.sv ../tb/tb_reg_file_unit.sv
+	./obj_unit_reg_file/Vtb_reg_file_unit
+
+
+# --- Phase 5: Branch predictor benchmark ----------------------------------
 BP_RTL = $(PIPELINE_RTL)
 
 branch-bench:
@@ -167,7 +175,7 @@ branch-bench:
 	@echo "[3/3] Running..."
 	./obj_branch/Vtb_branch_bench
 
-# ── Phase 5b: Instruction cache benchmark ────────────────────
+# --- Phase 5b: Instruction cache benchmark --------------------------------
 icache-bench:
 	@echo "[1/3] Compiling test_loop.s..."
 	$(GCC) $(ARCH) -nostdlib -nostartfiles -Ttext=0x0 \

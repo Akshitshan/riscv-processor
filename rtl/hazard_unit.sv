@@ -6,7 +6,7 @@
 
 module hazard_unit (
     // What instruction is in the ID/EX stage right now?
-    input logic       id_ex_mem_read,  // Is it a LOAD instruction?
+    input logic id_ex_mem_read,         // Is it a LOAD instruction?
     input logic [4:0] id_ex_rd,        // Which register is it writing to?
 
     // What registers does the NEXT instruction (in ID stage) need?
@@ -31,10 +31,10 @@ module hazard_unit (
                              ((id_ex_rd == if_id_rs1) || (id_ex_rd == if_id_rs2));
 
     // --- Drive outputs ----------------------------------------------------
-    //  When a load-use hazard is detected, stall the PC and the IF_ID reg, 
-    //  and ID_EX reg gets injected with NOP
+    // When a load-use hazard is detected, stall the PC and the IF_ID reg, 
+    // and ID_EX reg gets injected with NOP
     
-    assign stall_pc    = load_use_hazard;
+    assign stall_pc = load_use_hazard;
     assign stall_if_id = load_use_hazard;
     assign flush_id_ex = load_use_hazard;
 

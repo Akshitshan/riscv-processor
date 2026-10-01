@@ -1,14 +1,13 @@
 // Module: forward_unit- Data forwarding
-// Purpose: Mainly to solve RAW (Read after Write) hazards
-//          When an instrx needs a register value before a 
-//          previous intstrx has finished writing it back.
-//  Path 1: EX-EX forwarding (forward from EX/MEM register)
-//  Path 2: MEM-EX forwarding (forward from MEM/WB register)
+// Purpose: Mainly to solve RAW (Read after Write) hazards. When an instrx
+//          needs a register value before a previous intstrx has finished writing it back.
+// Path 1: EX-EX forwarding (forward from EX/MEM register)
+// Path 2: MEM-EX forwarding (forward from MEM/WB register)
 
 // 2-bit mux selects:
 //   2'b00 = use the register file value (no forwarding needed)
-//   2'b10 = use EX/MEM forwarded value  (one instruction ago)
-//   2'b01 = use MEM/WB forwarded value  (two instructions ago)
+//   2'b10 = use EX/MEM forwarded value (one instruction ago)
+//   2'b01 = use MEM/WB forwarded value (two instructions ago)
 // EX/MEM forwarding for rs1 is the highest priority because that is the latest value
 
 `timescale 1ns/1ps
@@ -19,11 +18,11 @@ module forward_unit (
     input logic [4:0] ex_rs2_addr,      // Source register 2 address
 
     // Previous instruction (in MEM stage)
-    input logic       ex_mem_reg_write,  // Is it writing to a register?
+    input logic ex_mem_reg_write,   // Is it writing to a register?
     input logic [4:0] ex_mem_rd,         // To which register?
 
     // Instruction two stages back (in WB stage)
-    input logic       mem_wb_reg_write,  // Is it writing to a register?
+    input logic mem_wb_reg_write,  // Is it writing to a register?
     input logic [4:0] mem_wb_rd,         // To which register?
 
     // Mux select lines- tells the EX stage MUXes which value to use

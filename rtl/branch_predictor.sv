@@ -12,13 +12,13 @@ module branch_predictor #(parameter BHT_BITS = 6)         // 6 bits = 64 entries
 
     // --- Prediction parameters (used by IF) -----------------------------------
     input logic [31:0] predict_pc,        // current PC to look up
-    output logic         predict_taken,   // prediction
-    output logic [31:0]  predict_target,  // prediction destination
+    output logic predict_taken,           // prediction
+    output logic [31:0] predict_target,  // prediction destination
 
     // --- Update parameters (used by EX after resolving) ----------------------
-    input logic        update_valid,    // a branch resolved this cycle
+    input logic update_valid,           // a branch resolved this cycle
     input logic [31:0] update_pc,       // PC of the branch that resolved
-    input logic        update_taken,    // was it actually taken?
+    input logic update_taken,           // was it actually taken?
     input logic [31:0] update_target    // the real target address
 );
 
@@ -40,8 +40,8 @@ module branch_predictor #(parameter BHT_BITS = 6)         // 6 bits = 64 entries
     integer i;
     initial begin
         for (i = 0; i < (1<<BHT_BITS); i = i + 1) begin
-            bht[i]   = 2'b01;
-            btb[i]   = 32'b0;
+            bht[i] = 2'b01;
+            btb[i] = 32'b0;
             valid[i] = 1'b0;
         end
     end
@@ -53,7 +53,7 @@ module branch_predictor #(parameter BHT_BITS = 6)         // 6 bits = 64 entries
     logic [BHT_BITS-1:0] update_idx;
 
     assign predict_idx = predict_pc[BHT_BITS+1 : 2];
-    assign update_idx  = update_pc[BHT_BITS+1 : 2];
+    assign update_idx = update_pc[BHT_BITS+1 : 2];
 
     // --- Prediction logic ---------------------------------------------------
     always_comb begin

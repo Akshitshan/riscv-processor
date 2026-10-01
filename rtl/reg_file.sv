@@ -2,25 +2,25 @@
 // Purpose: 32 working registers made of two read ports, one write port.
 
 // V2: Added write- first forwarding
-// Issue: As non-blocking assignment is merely evaluated before the clock edge 
-//        but gets assigned only after it, if the WB stage is writing to 
-//        a register that is being read in the ID stage, ID sees the old value not the new.
-// We fix this by bypassing the stored value and returning the new write data directly. 
+// Problem: As non-blocking assignment is merely evaluated before the clock edge 
+//          but gets assigned only after it, if the WB stage is writing to 
+//          a register that is being read in the ID stage, ID sees the old value not the new.
+// Fix: solved by bypassing the stored value and returning the new write data directly. 
 
 `timescale 1ns/1ps
 
 module reg_file (
-    input  logic clk,
+    input logic clk,
 
-    input  logic [4:0]  rs1_addr,               // Read port A (rs1)
+    input logic [4:0] rs1_addr,               // Read port A (rs1)
     output logic [31:0] rs1_data,
 
-    input  logic [4:0]  rs2_addr,               // Read port B (rs2)
+    input logic [4:0] rs2_addr,               // Read port B (rs2)
     output logic [31:0] rs2_data,
 
-    input  logic [4:0]  rd_addr,                // Write port (rd- from WB stage)
-    input  logic [31:0] rd_data,
-    input  logic        reg_write
+    input logic [4:0] rd_addr,                // Write port (rd- from WB stage)
+    input logic [31:0] rd_data,
+    input logic reg_write
 );
 
     // 32 registers × 32 bits

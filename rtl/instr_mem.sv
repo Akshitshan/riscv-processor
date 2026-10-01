@@ -1,14 +1,17 @@
 // Module: instr_mem- Instruction Memory
 // Purpose: Stores the compiled program and returns the 32-bit instruction at the requested address.
+
 // Example: Instruction 0xABCDEF12 sits in memory as:
 //          addr 0: 0x12  (lowest byte first)
 //          addr 1: 0xEF
 //          addr 2: 0xCD
 //          addr 3: 0xAB
-//  To reassemble: {mem[3], mem[2], mem[1], mem[0]} = 0xABCDEF12
+// To reassemble: {mem[3], mem[2], mem[1], mem[0]} = 0xABCDEF12
+
+// V2: Yosys was choking on the readmemh instr as it is only for simulation
 
 module instr_mem #(parameter MEM_DEPTH = 1024)
-   (input  logic [31:0] addr,            // Byte address from PC
+   (input logic [31:0] addr,            // Byte address from PC
     output logic [31:0] instr);          // 32-bit instruction out
 
     logic [7:0] mem [0:MEM_DEPTH*4-1];   
@@ -19,7 +22,9 @@ module instr_mem #(parameter MEM_DEPTH = 1024)
         begin
             for (i = 0; i < MEM_DEPTH*4; i = i + 1)
                 mem[i] = 8'h00;
+            `ifndef SYNTHESIS
             $readmemh("program.hex", mem);   // Load compiled program
+            `endif
         end
 
     always_comb 

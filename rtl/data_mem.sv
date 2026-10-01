@@ -7,14 +7,17 @@
 // If we read from memory, thats a load
 // If we write to the memory, thats a store
 
+// V2: Adding safe defaults to byte_val and half_val as yosys was
+//     raising latch interference bug
+
 module data_mem #(parameter MEM_DEPTH = 1024)
 (
-    input  logic        clk,
-    input  logic        mem_read,
-    input  logic        mem_write,
-    input  logic [2:0]  funct3,         // Selects access size and sign
-    input  logic [31:0] addr,           // Byte address (from ALU: rs1 + imm)
-    input  logic [31:0] write_data,
+    input logic clk,
+    input logic mem_read,
+    input logic mem_write,
+    input logic [2:0] funct3,         // Selects access size and sign
+    input logic [31:0] addr,           // Byte address (from ALU: rs1 + imm)
+    input logic [31:0] write_data,
     output logic [31:0] read_data       // Data loaded (goes to writeback)
 ); 
 
@@ -37,36 +40,39 @@ module data_mem #(parameter MEM_DEPTH = 1024)
                 3'b000: mem[addr] <= write_data[7:0];       // sb- only last byte
 
                 3'b001: begin                               // sh- last two bytes
-                    mem[addr]     <= write_data[7:0];
+                    mem[addr] <= write_data[7:0];
                     mem[addr + 1] <= write_data[15:8];
                 end
 
                 3'b010: begin                               // sw- last four bytes
-                    mem[addr]     <= write_data[7:0];
+                    mem[addr] <= write_data[7:0];
                     mem[addr + 1] <= write_data[15:8];
                     mem[addr + 2] <= write_data[23:16];
                     mem[addr + 3] <= write_data[31:24];
                 end
+                default: begin end
             endcase
         end
     end
 
     // --- Read: we can read whenever ----------------------------------
-    logic [7:0]  byte_val;    // Extracted byte
+    logic [7:0] byte_val;    // Extracted byte
     logic [15:0] half_val;    // Extracted halfword (assembled from 2 bytes)
 
     always_comb begin
         read_data = 32'b0;   // Safe default
+        byte_val = 8'b0;
+        half_val = 16'b0;
 
         if (mem_read) 
         begin
             case (funct3)
                 3'b000: begin                                   // byte load with signed padding
-                    byte_val  = mem[addr];
+                    byte_val = mem[addr];
                     read_data = {{24{byte_val[7]}}, byte_val};
                 end
                 3'b001: begin
-                    half_val  = {mem[addr + 1], mem[addr]};     // halfword load with signed padding
+                    half_val = {mem[addr + 1], mem[addr]};     // halfword load with signed padding
                     read_data = {{16{half_val[15]}}, half_val};
                 end
                 3'b010: begin                                   // full word load
@@ -81,6 +87,9 @@ module data_mem #(parameter MEM_DEPTH = 1024)
                 end
                 3'b101: begin                                   // LH with zero padding
                     read_data = {16'b0, mem[addr + 1], mem[addr]};
+                end
+                default: begin
+                    read_data = 32'b0;
                 end
             endcase
         end

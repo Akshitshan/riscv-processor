@@ -1,0 +1,19 @@
+Design Name: riscv_core
+Run Directory: /openlane/designs/riscv_processor/runs/core_v2_50ns
+----------------------------------------
+
+Magic DRC Summary:
+Source: /openlane/designs/riscv_processor/runs/core_v2_50ns/reports/signoff/drc.rpt
+Total Magic DRC violations is 0
+----------------------------------------
+
+LVS Summary:
+Source: /openlane/designs/riscv_processor/runs/core_v2_50ns/logs/signoff/39-riscv_core.lef.lvs.log
+Number of nets: 35912                      |Number of nets: 35912                      
+Design is LVS clean.
+----------------------------------------
+
+Antenna Summary:
+Source: /openlane/designs/riscv_processor/runs/core_v2_50ns/logs/signoff/41-arc.log
+Pin violations: 144
+Net violations: 106

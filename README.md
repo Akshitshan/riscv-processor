@@ -68,7 +68,7 @@ M-extension, and pipeline hazards, each isolating one category
 - **`sim/run_regression.py`**: compiles each test, runs it through both
 the RTL (Verilator) and the Python model, and compares every register
 - **155/155 checks passing** across all five test programs
-- **Isolated unit testbenches** — individual modules tested standalone, 
+- **Isolated unit testbenches**: individual modules tested standalone, 
 with no clock or pipeline dependency.
-- **2 performance benchmarks** (tb_branch_bench.sv and tb_icache_bench.sv): measure
+- **2 performance benchmarks**: (tb_branch_bench.sv and tb_icache_bench.sv): measure
 branch prediction accuracy and cache hit rate directly, rather than just checking the correctness alone

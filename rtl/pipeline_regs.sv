@@ -3,16 +3,9 @@
 
 // V2: Added branch preditor bit for the EX stage to compare later
 // V3: Removing 'import risv_pkg::*' bcz yosys is choking at the import call
-
-// V4: Yosys failed with "Multiple edge sensitive events found for this signal" on 
-//     id_ex and if_id, while ex_mem and mem_wb synthesized fine.
-// Problem: Both failing modules wrote always_ff @(posedge clk or posedge rst) with 
-//          a reset condition of if (rst || flush). Yosys can only identify an
-//          asynchronous reset when the reset branch is solo- with rst || flush it
-//          couldn't determine which signal was the reset, detecting nothing
-
-// Fix: Split the condition into separate branches- if (rst) for the asynchronous reset, 
-//      else if (flush) as a synchronous branch
+// V4: Async reset (rst alone) seperated from synchronous flush
+// V5: Added predicted_target so EX can detect wrong- target predictions
+//     caused by aliasing in the untagged BTB
 
 `timescale 1ns/1ps
 
@@ -26,10 +19,12 @@ module if_id_reg (
     input logic [31:0] pc_in,
     input logic [31:0] instr_in,
     input logic predicted_taken_in,
+    input logic [31:0] predicted_target_in,
 
     output logic [31:0] pc_out,
     output logic [31:0] instr_out,
-    output logic predicted_taken_out
+    output logic predicted_taken_out,
+    output logic [31:0] predicted_target_out
 );
     localparam NOP = 32'h0000_0013;
 
@@ -38,16 +33,19 @@ module if_id_reg (
             pc_out <= 32'b0;
             instr_out <= NOP;
             predicted_taken_out <= 1'b0;   // a flushed/reset slot never "predicted taken"
+            predicted_target_out <=32'b0;
         end
         else if (flush) begin
             pc_out <= 32'b0;
             instr_out <= NOP;
             predicted_taken_out <= 1'b0;
+            predicted_target_out <=32'b0;
         end
         else if (!stall) begin
             pc_out <= pc_in;
             instr_out <= instr_in;
             predicted_taken_out <= predicted_taken_in;
+            predicted_target_out <= predicted_target_in;
         end
     end
 endmodule
@@ -58,6 +56,7 @@ module id_ex_reg (
     input logic clk,
     input logic rst,
     input logic flush,
+    input logic stall,
 
     input logic reg_write_in,
     input logic mem_read_in,
@@ -80,6 +79,7 @@ module id_ex_reg (
     input logic [4:0] rd_addr_in,
 
     input logic predicted_taken_in,
+    input logic [31:0] predicted_target_in,
 
     output logic reg_write_out,
     output logic mem_read_out,
@@ -99,7 +99,8 @@ module id_ex_reg (
     output logic [4:0] rs2_addr_out,
     output logic [4:0] rd_addr_out,
 
-    output logic predicted_taken_out
+    output logic predicted_taken_out,
+    output logic [31:0] predicted_target_out
 );
     always_ff @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -112,6 +113,7 @@ module id_ex_reg (
             rs2_data_out <= 0; imm_out <= 0;
             rs1_addr_out <= 0; rs2_addr_out <= 0; rd_addr_out <= 0;
             predicted_taken_out <= 1'b0;
+            predicted_target_out <= 32'b0;
         end
         else if (flush) begin
             reg_write_out <= 0; mem_read_out <= 0;
@@ -123,8 +125,9 @@ module id_ex_reg (
             rs2_data_out <= 0; imm_out <= 0;
             rs1_addr_out <= 0; rs2_addr_out <= 0; rd_addr_out <= 0;
             predicted_taken_out <= 1'b0;
+            predicted_target_out <= 32'b0;
         end 
-        else begin
+        else if (!stall) begin
             reg_write_out <= reg_write_in; mem_read_out <= mem_read_in;
             mem_write_out <= mem_write_in; mem_funct3_out<= mem_funct3_in;
             wb_sel_out <= wb_sel_in; alu_src_out <= alu_src_in;
@@ -136,6 +139,7 @@ module id_ex_reg (
             rs1_addr_out <= rs1_addr_in; rs2_addr_out <= rs2_addr_in;
             rd_addr_out <= rd_addr_in;
             predicted_taken_out <= predicted_taken_in;
+            predicted_target_out <= predicted_target_in;
         end
     end
 endmodule

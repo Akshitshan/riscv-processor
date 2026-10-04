@@ -3,6 +3,9 @@
 //          to perform and produces the result (and a zero flag for branch logics)
 
 // V2: Removing 'import risv_pkg::*' bcz yosys is choking at the import call
+// V3: For area/ timing pass, division and remainder moved out to a seperate 
+//     divider.sv module. Also instead of three seperate 32x32 multipliers being built, 
+//     we now have one shared 33x33 signed multiplier.
 
 `timescale 1ns/1ps
 
@@ -20,18 +23,14 @@ module alu (
     assign signed_a = $signed(operand_a);
     assign signed_b = $signed(operand_b);
 
-    // --- Multiplication intermediates -------------------------------
-    // Need a 64-bit intermediary to be able to extract the high half in case of MULH
-
-    logic signed [63:0] mul_ss;             // Signed x signed
-    assign mul_ss = signed_a * signed_b;
-
-    logic [63:0] mul_uu;                    // Unsigned x unsigned
-    assign mul_uu = operand_a * operand_b;
-
-    // zero-extend operand_b to 33 bits so '$signed' treats it as +ve
-    logic signed [63:0] mul_su;             // Signed x Unsigned
-    assign mul_su = signed_a * $signed({1'b0, operand_b});
+    // Shared multiplier: operand A is unsigned only for MULHU, signed otherwise
+    //                    operand B is signed only for MULH, unsigned otherwise
+    // MUL only uses the low 32 bits, which are identical either way.
+    logic signed [32:0] mul_a, mul_b;
+    logic signed [65:0] mul_p;
+    assign mul_a = (alu_op == riscv_pkg::ALU_MULHU) ? {1'b0, operand_a} : {operand_a[31], operand_a};
+    assign mul_b = (alu_op == riscv_pkg::ALU_MULH)  ? {operand_b[31], operand_b} : {1'b0, operand_b};
+    assign mul_p = mul_a * mul_b;
 
     // --- Main operation selection -----------------------------------
     always_comb begin
@@ -59,39 +58,10 @@ module alu (
             riscv_pkg::ALU_SLTU: result = (operand_a < operand_b) ? 32'd1 : 32'd0;
 
             // --- M-extension: Multiply ------------------------------
-            riscv_pkg::ALU_MUL: result = mul_ss[31:0];    // lower 32 of s×s
-            riscv_pkg::ALU_MULH: result = mul_ss[63:32];   // upper 32 of s×s
-            riscv_pkg::ALU_MULHSU: result = mul_su[63:32];   // upper 32 of s×u
-            riscv_pkg::ALU_MULHU: result = mul_uu[63:32];   // upper 32 of u×u
-
-            // --- M-extension: Divide --------------------------------
-            riscv_pkg::ALU_DIV: begin
-                if (operand_b == 32'b0)
-                    result = 32'hFFFF_FFFF;          // -1
-                else
-                    result = $signed(operand_a) / $signed(operand_b);
-            end
-
-            riscv_pkg::ALU_DIVU: begin
-                if (operand_b == 32'b0)
-                    result = 32'hFFFF_FFFF;          // 2^32 - 1
-                else
-                    result = operand_a / operand_b;  // unsigned
-            end
-
-            riscv_pkg::ALU_REM: begin
-                if (operand_b == 32'b0)
-                    result = operand_a;              // remainder = dividend
-                else
-                    result = $signed(operand_a) % $signed(operand_b);
-            end
-
-            riscv_pkg::ALU_REMU: begin
-                if (operand_b == 32'b0)
-                    result = operand_a;
-                else
-                    result = operand_a % operand_b;  // unsigned modulo
-            end
+            riscv_pkg::ALU_MUL: result = mul_p[31:0];
+            riscv_pkg::ALU_MULH: result = mul_p[63:32];
+            riscv_pkg::ALU_MULHSU: result = mul_p[63:32];
+            riscv_pkg::ALU_MULHU: result = mul_p[63:32];
 
             default: result = 32'b0;
         endcase

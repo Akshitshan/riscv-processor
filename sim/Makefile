@@ -33,11 +33,13 @@ SINGLE_RTL = $(SHARED) ../rtl/riscv_top.sv
 
 # --- Phase 3: pipeline -----------------------------------------------------
 PIPELINE_RTL = $(SHARED)              \
-    ../rtl/pipeline_regs.sv           \
-    ../rtl/hazard_unit.sv             \
-    ../rtl/forward_unit.sv            \
-    ../rtl/branch_predictor.sv        \
-    ../rtl/icache.sv                  \
+    ../rtl/pipeline_regs.sv \
+    ../rtl/hazard_unit.sv \
+    ../rtl/forward_unit.sv \
+    ../rtl/branch_predictor.sv \
+    ../rtl/icache.sv \
+	../rtl/divider.sv \
+	../rtl/riscv_core.sv \
     ../rtl/riscv_pipeline.sv
 
 # --- Phase 4: verification --------------------------------------------------
@@ -127,7 +129,7 @@ disasm:
 
 clean:
 	rm -rf obj_single obj_pipeline obj_verify obj_branch obj_icache obj_unit_alu 
-	rm -rf obj_unit_imm_gen obj_unit_reg_file
+	rm -rf obj_unit_imm_gen obj_unit_reg_file obj_unit_div
 	rm -f *.vcd *.elf *.hex expected_regs.hex
 	@echo "Cleaned."
 
@@ -188,3 +190,10 @@ icache-bench:
 	    $(PIPELINE_RTL) ../tb/tb_icache_bench.sv
 	@echo "[3/3] Running..."
 	./obj_icache/Vtb_icache_bench
+
+unit-divider:
+	@mkdir -p obj_unit_div
+	$(VERILATOR) --binary --timing -sv -Wno-fatal \
+	    --top-module tb_divider_unit -Mdir obj_unit_div \
+	    ../rtl/divider.sv ../tb/tb_divider_unit.sv
+	./obj_unit_div/Vtb_divider_unit

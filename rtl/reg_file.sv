@@ -9,8 +9,8 @@
 
 `timescale 1ns/1ps
 
-module reg_file (
-    input logic clk,
+module reg_file #(parameter bit WRITE_FIRST = 1'b1)
+    (input logic clk,
 
     input logic [4:0] rs1_addr,               // Read port A (rs1)
     output logic [31:0] rs1_data,
@@ -26,18 +26,20 @@ module reg_file (
     // 32 registers × 32 bits
     logic [31:0] regs [0:31];
 
+`ifndef SYNTHESIS
     integer i;
     initial begin
         for (i = 0; i < 32; i = i + 1)
             regs[i] = 32'b0;
     end
+`endif
 
     // --- Read port A ---------------------------------------------------
     always_comb 
     begin
         if (rs1_addr == 5'b0)
             rs1_data = 32'b0;                    // x0 is hardwired to 0
-        else if (reg_write && rd_addr == rs1_addr)
+        else if (WRITE_FIRST && reg_write && rd_addr == rs1_addr)
             rs1_data = rd_data;                  // WB forwarding: new value
         else
             rs1_data = regs[rs1_addr];           // Normal read
@@ -48,7 +50,7 @@ module reg_file (
     begin
         if (rs2_addr == 5'b0)
             rs2_data = 32'b0;
-        else if (reg_write && rd_addr == rs2_addr)
+        else if (WRITE_FIRST && reg_write && rd_addr == rs2_addr)
             rs2_data = rd_data;
         else
             rs2_data = regs[rs2_addr];

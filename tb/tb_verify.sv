@@ -7,6 +7,8 @@
 // 4. Counts which instruction types were fetched (coverage)
 // 5. Dumps register state so the regression runner can read it
 
+// V2: as each divide now takes 33 cycles, its repeat(3000) instead of 800
+
 `timescale 1ns/1ps
 
 module tb_verify;
@@ -99,15 +101,15 @@ module tb_verify;
 
         // Run for 500 cycles- enough for any of our test programs
         // (even with stalls from load-use hazards)
-        repeat(800) @(posedge clk); #1;   // bumped for icache miss headroom (Phase 5b)
+        repeat(3000) @(posedge clk); #1;   // bumped for icache miss headroom (Phase 5b)
 
         // --- Scoreboard comparison ----------------------------------------
         $display("--- Register comparison: DUT vs reference model ---");
         begin
             int i;
             for (i = 1; i < 32; i++) begin
-                if (expected[i] != 0 || DUT.u_rf.regs[i] != 0)
-                    check_reg(i[4:0], expected[i], DUT.u_rf.regs[i]);
+                if (expected[i] != 0 || DUT.u_core.u_rf.regs[i] != 0)
+                    check_reg(i[4:0], expected[i], DUT.u_core.u_rf.regs[i]);
             end
         end
 
@@ -145,7 +147,7 @@ module tb_verify;
         begin
             int j;
             for (j = 0; j < 32; j++)
-                $display("x%0d=0x%08h", j, DUT.u_rf.regs[j]);
+                $display("x%0d=0x%08h", j, DUT.u_core.u_rf.regs[j]);
         end
         $display("REGDUMP_END");
 

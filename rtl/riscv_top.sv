@@ -52,10 +52,10 @@ module riscv_top
     // --- Writeback mux ------------------------------------------------
     always_comb begin
         case (wb_sel)
-            2'b00: rd_data = alu_result;
+            2'b00: rd_data = final_result;
             2'b01: rd_data = mem_read_data;
             2'b10: rd_data = pc_plus4;
-            default: rd_data = alu_result;
+            default: rd_data = final_result;
         endcase
     end
 
@@ -105,6 +105,31 @@ module riscv_top
         .rd_addr(instr[11:7]), .rd_data(rd_data),
         .reg_write(reg_write)
     );
+
+    logic [31:0] div_result, final_result;
+    logic is_div, div_overflow;
+    assign is_div = (alu_op == riscv_pkg::ALU_DIV) || (alu_op == riscv_pkg::ALU_DIVU) ||
+                    (alu_op == riscv_pkg::ALU_REM) || (alu_op == riscv_pkg::ALU_REMU);
+    assign div_overflow = (alu_operand_a == 32'h8000_0000) && (alu_operand_b == 32'hFFFF_FFFF);
+ 
+    always_comb begin
+        div_result = 32'b0;
+        case (alu_op)
+            riscv_pkg::ALU_DIV: div_result = (alu_operand_b == 32'b0) ? 32'hFFFF_FFFF :
+                                div_overflow ? 32'h8000_0000 :
+                                $signed(alu_operand_a) / $signed(alu_operand_b);
+            riscv_pkg::ALU_DIVU: div_result = (alu_operand_b == 32'b0) ? 32'hFFFF_FFFF :
+                                alu_operand_a / alu_operand_b;
+            riscv_pkg::ALU_REM: div_result = (alu_operand_b == 32'b0) ? alu_operand_a :
+                                div_overflow ? 32'b0 : $signed(alu_operand_a) % $signed(alu_operand_b);
+            riscv_pkg::ALU_REMU: div_result = (alu_operand_b == 32'b0) ? alu_operand_a :
+                                alu_operand_a % alu_operand_b;
+
+            default: div_result = 32'b0;
+        endcase
+    end
+ 
+    assign final_result = is_div ? div_result : alu_result;
 
     alu u_alu (
         .operand_a(alu_operand_a), .operand_b(alu_operand_b),

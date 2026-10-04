@@ -5,6 +5,7 @@
 //          and adding 5 extra cycles before returning the data and also
 //          saving it in the cache for next time.
 
+// V2: 
 `timescale 1ns/1ps
 
 module icache (
@@ -15,81 +16,80 @@ module icache (
     output logic [31:0] instr_out,
     output logic stall,      // 1 = miss in progress, freeze pipeline
 
+    output logic [31:0] mem_addr,   // to backing instruction memory
+    input logic [31:0] mem_rdata,   // from backing instruction memory
+
     // --- For the benchmark testbench ---------------------------------------
     output logic hit_pulse,
     output logic miss_pulse
 );
 
-    localparam LINES = 16;   // Only 1 instr per line
-    localparam LATENCY = 5;    // simulated main-memory delay, in cycles
-
-    logic [31:0] data [0:LINES-1];      // the cached instructions
-    logic [25:0] tag [0:LINES-1];       // the tag stored for each line
-    logic valid [0:LINES-1];            // has this line ever been filled?
-
-    logic [3:0] index;         // Selects which line
-    logic [25:0] cur_tag;       // Same line can house multiple instr, so another check
+    localparam int lines = 16;
+    localparam logic [2:0] miss_wait = 3'd4;     // 5-cycle penalty (4..0)
+    localparam logic idle = 1'b0;
+    localparam logic miss = 1'b1;
+ 
+    logic [31:0] data [0:lines-1];
+    logic [25:0] tag [0:lines-1];
+    logic [lines-1:0] valid;
+ 
+    logic [3:0] index;
+    logic [25:0] cur_tag;
+    logic hit;
+    logic state;
+    logic [2:0] wait_count;
+    logic fill;
+ 
     assign index = addr[5:2];
     assign cur_tag = addr[31:6];
-
-    // --- Hit detection ---------------------------------------------
-    logic hit;
+    assign mem_addr = addr;
+ 
     assign hit = valid[index] && (tag[index] == cur_tag);
-
-    // --- Existing instr_mem ----------------------------------------
-    logic [31:0] mem_instr;
-    instr_mem #(.MEM_DEPTH(1024)) u_backing_mem (
-        .addr (addr),
-        .instr (mem_instr)
-    );
-
-    // --- The miss-handling state machine ---------------------------
-    typedef enum logic { IDLE, MISS } state_t;
-    state_t state;
-    logic [2:0] wait_count;   // counts down remaining wait cycles
-
+    assign fill = (state == miss) && (wait_count == 3'd0) && !flush;
+ 
+    // Control state: FSM and valid bits (async reset)
     always_ff @(posedge clk or posedge rst) begin
         if (rst) begin
-            state <= IDLE;
+            state <= idle;
             wait_count <= 3'd0;
-            for (int i = 0; i < LINES; i++)
-                valid[i] <= 1'b0;   // every line starts empty
+            valid <= '0;
         end 
         else if (flush) begin
-            state <= IDLE;
+            state <= idle;
             wait_count <= 3'd0;
         end 
         else begin
             case (state)
-                IDLE: begin
-                    if (!hit) begin                     // If miss detected
-                        state <= MISS;
-                        wait_count <= LATENCY - 1;
+                idle: begin
+                    if (!hit) begin
+                        state <= miss;
+                        wait_count <= miss_wait;
                     end
-                    // If it's a hit, we just stay in Idle and not do anything
                 end
-
-                MISS: begin
-                    if (wait_count == 3'd0) begin       // The simulated delay is over
-                        data[index] <= mem_instr;
-                        tag[index] <= cur_tag;
+                miss: begin
+                    if (wait_count == 3'd0) begin
                         valid[index] <= 1'b1;
-                        state <= IDLE;
-                    end 
-                    else begin
+                        state <= idle;
+                    end else begin
                         wait_count <= wait_count - 3'd1;
                     end
                 end
-                
+                default: state <= idle;
             endcase
         end
     end
-
-    // --- Outputs ---------------------------------------------------
-    assign stall = (state == MISS);         // always stall whenever its a miss
-    assign instr_out = hit ? data[index] : mem_instr;
-
-    assign hit_pulse = (state == IDLE) && hit;
-    assign miss_pulse = (state == IDLE) && !hit;
-
+ 
+    // Storage arrays: no reset needed
+    always_ff @(posedge clk) begin
+        if (fill) begin
+            data[index] <= mem_rdata;
+            tag[index] <= cur_tag;
+        end
+    end
+ 
+    assign stall = (state == miss);
+    assign instr_out = hit ? data[index] : mem_rdata;
+    assign hit_pulse = (state == idle) && hit;
+    assign miss_pulse = (state == idle) && !hit;
+ 
 endmodule

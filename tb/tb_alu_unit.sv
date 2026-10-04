@@ -1,5 +1,8 @@
 // Module: tb_alu_unit- Testbench for alu.sv
 
+// V2: Removed the divide/ remainder and the divide by zero tests
+// as those are now checked by the dividers own testbench
+
 `timescale 1ns/1ps
 
 module tb_alu_unit;
@@ -84,22 +87,6 @@ module tb_alu_unit;
         check(-32'd3, 32'd5, ALU_MULH, 32'hFFFF_FFFF,"MULH: upper 32 of -15 (s×s)");
         check(32'hFFFF_FFFF, 32'd5, ALU_MULHU, 32'd4, "MULHU: 0xFFFFFFFF*5 upper (u×u)");
         check(32'hFFFF_FFFF, 32'd5, ALU_MULHSU, 32'hFFFF_FFFF,"MULHSU: -1*5 upper (s×u)");
-
-        // --- M- extension: Divide and Remainder -----------------------------------
-        $display("\n----- Divide / Remainder (all 4 M- ext variants) -----");
-        check(32'd12, 32'd5, ALU_DIV, 32'd2, "DIV: 12/5 = 2");
-        check(32'd12, 32'd5, ALU_REM, 32'd2, "REM: 12 mod 5 = 2");
-        check(32'd12, 32'd5, ALU_DIVU, 32'd2, "DIVU: 12/5 = 2 unsigned");
-        check(32'd12, 32'd5, ALU_REMU, 32'd2, "REMU: 12 mod 5 = 2 unsigned");
-        check(-32'd7, 32'd2, ALU_DIV, -32'd3, "DIV: -7/2 = -3 (rounds toward zero)");
-        check(-32'd7, 32'd2, ALU_REM, -32'd1, "REM: -7 mod 2 = -1 (sign follows dividend)");
-
-        // --- Division by zero -----------------------------------------------------
-        $display("\n----- Division by zero (RISC-V defined, no trap) -----");
-        check(32'd100, 32'd0, ALU_DIV, 32'hFFFF_FFFF, "DIV by 0 is -1");
-        check(32'd100, 32'd0, ALU_DIVU, 32'hFFFF_FFFF, "DIVU by 0 is 0xFFFFFFFF");
-        check(32'd100, 32'd0, ALU_REM, 32'd100, "REM by 0 is dividend unchanged");
-        check(32'd100, 32'd0, ALU_REMU, 32'd100, "REMU by 0 is dividend unchanged");
 
         // --- Zero flag -----------------------------------------------------------
         $display("\n----- Zero flag -----");

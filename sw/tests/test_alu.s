@@ -26,4 +26,6 @@ _start:
     srli x21, x16, 2        # x21 = 31
     srai x22, x12, 2        # x22 = -4 = 0xFFFFFFFC
     lui x23, 0xABCDE        # x23 = 0xABCDE000
+    auipc x24, 0            # x24 = address of this instruction
+    auipc x25, 1            #x25 = address of this instruction + 0x1000
 done: j done

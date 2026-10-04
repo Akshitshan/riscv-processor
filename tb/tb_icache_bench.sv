@@ -65,15 +65,15 @@ module tb_icache_bench;
         repeat(300) @(posedge clk); #1;
 
         $display("--- Correctness ---");
-        if (DUT.u_rf.regs[1] == 32'd20)
-            $display("PASS | x1 = %0d (loop counter reached 20)", DUT.u_rf.regs[1]);
+        if (DUT.u_core.u_rf.regs[1] == 32'd20)
+            $display("PASS | x1 = %0d (loop counter reached 20)", DUT.u_core.u_rf.regs[1]);
         else
-            $display("FAIL | x1 = %0d (expected 20)", DUT.u_rf.regs[1]);
+            $display("FAIL | x1 = %0d (expected 20)", DUT.u_core.u_rf.regs[1]);
 
-        if (DUT.u_rf.regs[3] == 32'd99)
-            $display("PASS | x3 = %0d (reached end-of-loop marker)", DUT.u_rf.regs[3]);
+        if (DUT.u_core.u_rf.regs[3] == 32'd99)
+            $display("PASS | x3 = %0d (reached end-of-loop marker)", DUT.u_core.u_rf.regs[3]);
         else
-            $display("FAIL | x3 = %0d (expected 99)", DUT.u_rf.regs[3]);
+            $display("FAIL | x3 = %0d (expected 99)", DUT.u_core.u_rf.regs[3]);
 
         $display("\n--- Instruction Cache Performance ---");
         $display("Total clock cycles: %0d", cycle_count);

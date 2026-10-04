@@ -1,15 +1,15 @@
 // Module: tb_pipeline
 
-// Version-2:
+// V2: 1. Instruction cache added a 5-cycle penalty on cold misses, so we can
+//     no longer assume 1 cycle per instruction. We now wait a single big window,
+//     then check everything.
 
-// 1. Instruction cache added a 5-cycle penalty on cold misses, so we can
-//    no longer assume 1 cycle per instruction. We now wait a single big window,
-//    then check everything.
+//     2. Return address ra and reg x1 being the same one, x1 gets overwritten
+//     by 'jal ra, my_func.' So to check x1 value, we immediately extract its value the 
+//     first time its written and hold it till we have to verify the contents. 
+//     Keeps it immune from jal ra overwriting
 
-// 2. return address ra and reg x1 being the same one, x1 gets legitimately overwritten
-//    by 'jal ra, my_func.' So to check x1 value, we immediately extract its value the 
-//    first time its written and hold it till we have to verify the contents. 
-//    Keeps it immune from jal ra overwriting
+// V2: as each divide now takes 33 cycles, its repeat(1000) instead of 400
 
 `timescale 1ns/1ps
 
@@ -43,15 +43,15 @@ module tb_pipeline;
     always_ff @(posedge clk) begin
         if (rst) begin
             x1_extract_taken <= 1'b0;
-        end else if (!x1_extract_taken && DUT.wb_reg_write && DUT.wb_rd_addr == 5'd1) begin
-            x1_extract <= DUT.wb_data;
+        end else if (!x1_extract_taken && DUT.u_core.wb_reg_write && DUT.u_core.wb_rd_addr == 5'd1) begin
+            x1_extract <= DUT.u_core.wb_data;
             x1_extract_taken <= 1'b1;
         end
     end
 
     task automatic check_reg(input [4:0] rn, input [31:0] exp, input string label);
         logic [31:0] act;
-        act = DUT.u_rf.regs[rn];
+        act = DUT.u_core.u_rf.regs[rn];
         if (act === exp) begin
             $display("PASS | x%-2d = 0x%08h | %s", rn, act, label);
             pass_count++;
@@ -70,7 +70,7 @@ module tb_pipeline;
 
         // --- Wait window -------------------------------------------------------------------
         // Worst case considering repeated cold icache misses and branch/jump flush overhead.
-        repeat(400) @(posedge clk); #1;
+        repeat(1000) @(posedge clk); #1;
 
         $display("--- Basic Arithmetic ---");
         if (x1_extract === 32'd10) begin

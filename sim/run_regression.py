@@ -21,6 +21,7 @@ TESTS = [
     ("Branch Instructions", "test_branch"),
     ("Memory Load / Store", "test_memory"),
     ("M-Extension (mul/div)","test_mext"),
+    ("Predictor aliasing", "test_alias")
 ]
 
 # --- Helpers -----------------------------------------------------

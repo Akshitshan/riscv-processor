@@ -14,11 +14,11 @@
 
 module forward_unit (
     // Current instruction in EX stage
-    input logic [4:0] ex_rs1_addr,      // Source register 1 address
-    input logic [4:0] ex_rs2_addr,      // Source register 2 address
+    input logic [4:0] ex_rs1_addr,
+    input logic [4:0] ex_rs2_addr,
 
     // Previous instruction (in MEM stage)
-    input logic ex_mem_reg_write,   // Is it writing to a register?
+    input logic ex_mem_reg_write,       // Is it writing to a register?
     input logic [4:0] ex_mem_rd,         // To which register?
 
     // Instruction two stages back (in WB stage)
@@ -32,16 +32,14 @@ module forward_unit (
     // --- Forwarding logic for operand A (rs1) -----------------------------
     always_comb 
     begin
-        forward_a = 2'b00; // No forwarding by default- use register file
+        forward_a = 2'b00;          // No forwarding by default- use register file
 
         if (ex_mem_reg_write &&             // It is writing to a reg
             (ex_mem_rd != 5'b0) &&          // It is not x0
             (ex_mem_rd == ex_rs1_addr))     // It is writing to the reg the next instruction needs
             forward_a = 2'b10;              // Take value from EX/MEM register
 
-        else if (mem_wb_reg_write &&
-                 (mem_wb_rd != 5'b0) &&
-                 (mem_wb_rd == ex_rs1_addr))
+        else if (mem_wb_reg_write && (mem_wb_rd != 5'b0) && (mem_wb_rd == ex_rs1_addr))
             forward_a = 2'b01;              // Take value from MEM/WB register
     end
 
@@ -50,14 +48,9 @@ module forward_unit (
     begin
         forward_b = 2'b00;
 
-        if (ex_mem_reg_write &&
-            (ex_mem_rd != 5'b0) &&
-            (ex_mem_rd == ex_rs2_addr))
+        if (ex_mem_reg_write && (ex_mem_rd != 5'b0) && (ex_mem_rd == ex_rs2_addr))
             forward_b = 2'b10;
-
-        else if (mem_wb_reg_write &&
-                 (mem_wb_rd != 5'b0) &&
-                 (mem_wb_rd == ex_rs2_addr))
+        else if (mem_wb_reg_write && (mem_wb_rd != 5'b0) && (mem_wb_rd == ex_rs2_addr))
             forward_b = 2'b01;
     end
 

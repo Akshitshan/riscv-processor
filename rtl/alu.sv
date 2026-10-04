@@ -29,15 +29,15 @@ module alu (
     logic signed [32:0] mul_a, mul_b;
     logic signed [65:0] mul_p;
     assign mul_a = (alu_op == riscv_pkg::ALU_MULHU) ? {1'b0, operand_a} : {operand_a[31], operand_a};
-    assign mul_b = (alu_op == riscv_pkg::ALU_MULH)  ? {operand_b[31], operand_b} : {1'b0, operand_b};
+    assign mul_b = (alu_op == riscv_pkg::ALU_MULH) ? {operand_b[31], operand_b} : {1'b0, operand_b};
     assign mul_p = mul_a * mul_b;
 
     // --- Main operation selection -----------------------------------
     always_comb begin
-        result = 32'b0;   // safe default
+        result = 32'b0;
 
         case (alu_op)
-            // ---Integer arithmetic ----------------------------------
+            // --- Integer arithmetic ----------------------------------
             riscv_pkg::ALU_ADD: result = operand_a + operand_b;
             riscv_pkg::ALU_SUB: result = operand_a - operand_b;
             riscv_pkg::ALU_LUI: result = operand_b;   // operand b in upper 20bits with padding

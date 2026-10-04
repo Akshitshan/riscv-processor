@@ -96,7 +96,7 @@ module control_unit (
             OP_REG: begin
                 reg_write = 1'b1; alu_src = 1'b0; imm_sel = riscv_pkg::IMM_X;
             end
-            OP_SYSTEM: begin end  // ECALL/EBREAK: NOP for now
+            OP_SYSTEM: begin end        // ECALL/EBREAK: NOP for now
             default: begin end
         endcase
 

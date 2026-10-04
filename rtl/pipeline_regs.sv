@@ -4,7 +4,7 @@
 // V2: Added branch preditor bit for the EX stage to compare later
 // V3: Removing 'import risv_pkg::*' bcz yosys is choking at the import call
 // V4: Async reset (rst alone) seperated from synchronous flush
-// V5: Added predicted_target so EX can detect wrong- target predictions
+// V5: Added predicted_target so EX can detect wrong target predictions
 //     caused by aliasing in the untagged BTB
 
 `timescale 1ns/1ps

@@ -72,7 +72,7 @@ module tb_divider_unit;
         end 
         else begin
             fail_count++;
-            $display("  FAIL | %-34s | a=0x%08h b=0x%08h sgn=%0b rem=%0b got 0x%08h expected 0x%08h, %0d cycles",
+            $display("Fail | %-34s | a=0x%08h b=0x%08h sgn=%0b rem=%0b got 0x%08h expected 0x%08h, %0d cycles",
                     label, a, b, sgn, rem, result, exp, latency);
         end
     endtask

@@ -4,5 +4,5 @@ sim/obj_*/
 *.elf
 *.hex
 
-# uncompressed layouts are huge; commit the .gz instead
+# uncompressed layouts are huge, commit the .gz instead
 *.gds

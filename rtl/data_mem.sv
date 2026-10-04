@@ -77,9 +77,9 @@ module data_mem #(parameter MEM_DEPTH = 1024)
                 end
                 3'b010: begin                                   // full word load
                     read_data = {mem[addr + 3],   // bits [31:24]
-                                 mem[addr + 2],   // bits [23:16]
-                                 mem[addr + 1],   // bits [15:8]
-                                 mem[addr]};      // bits [7:0]
+                                mem[addr + 2],   // bits [23:16]
+                                mem[addr + 1],   // bits [15:8]
+                                mem[addr]};      // bits [7:0]
                 end
 
                 3'b100: begin                                   // LB with zero padding
